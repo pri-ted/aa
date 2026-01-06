@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: service-auth
+  namespace: platform-apps
+  labels:
+    app: service-auth
+    service: auth
+    tier: application
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: service-auth
+  template:
+    metadata:
+      labels:
+        app: service-auth
+        service: auth
+        tier: application
+    spec:
+      containers:
+      - name: service-auth
+        image: service-auth:latest  # Will be overridden by Kustomize
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: grpc
+          containerPort: 9090
+          protocol: TCP
+        env:
+        - name: DB_HOST
+          value: "postgres.platform-data.svc.cluster.local"
+        - name: DB_PORT
+          value: "5432"
+        - name: DB_USER
+          valueFrom:
+            secretRef:
+              name: postgres-credentials
+              key: username
+        - name: DB_PASSWORD
+          valueFrom:
+            secretRef:
+              name: postgres-credentials
+              key: password
+        - name: DB_NAME
+          value: "platform_dev"
+        - name: GRPC_PORT
+          value: "9090"
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - "pidof service-auth"
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          tcpSocket:
+            port: 9090
+          initialDelaySeconds: 10
+          periodSeconds: 5
