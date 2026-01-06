@@ -1,0 +1,149 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: grafana
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: AtomicAds
+    tier: monitoring
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: platform-infrastructure
+  
+  source:
+    repoURL: https://grafana.github.io/helm-charts
+    chart: grafana
+    targetRevision: 7.0.0
+    helm:
+      releaseName: grafana
+      values: |
+        # Grafana Configuration
+        replicas: 2
+        
+        # Resources
+        resources:
+          requests:
+            memory: 256Mi
+            cpu: 200m
+          limits:
+            memory: 512Mi
+            cpu: 500m
+        
+        # Persistence
+        persistence:
+          enabled: true
+          size: 10Gi
+          accessModes:
+            - ReadWriteOnce
+        
+        # Admin credentials (change in production!)
+        adminUser: admin
+        adminPassword: admin123
+        
+        # Datasources
+        datasources:
+          datasources.yaml:
+            apiVersion: 1
+            datasources:
+              # Prometheus
+              - name: Prometheus
+                type: prometheus
+                url: http://prometheus-kube-prometheus-prometheus.platform-monitoring:9090
+                access: proxy
+                isDefault: true
+                jsonData:
+                  timeInterval: 30s
+              
+              # Loki (if available)
+              - name: Loki
+                type: loki
+                url: http://loki.platform-monitoring:3100
+                access: proxy
+        
+        # Dashboard providers
+        dashboardProviders:
+          dashboardproviders.yaml:
+            apiVersion: 1
+            providers:
+              - name: 'default'
+                orgId: 1
+                folder: ''
+                type: file
+                disableDeletion: false
+                editable: true
+                options:
+                  path: /var/lib/grafana/dashboards/default
+              
+              - name: 'platform'
+                orgId: 1
+                folder: 'Platform'
+                type: file
+                disableDeletion: false
+                editable: true
+                options:
+                  path: /var/lib/grafana/dashboards/platform
+        
+        # Dashboards (loaded from platform-monitoring repo)
+        dashboards:
+          default:
+            kubernetes-cluster:
+              gnetId: 7249
+              revision: 1
+              datasource: Prometheus
+          
+          platform:
+            # Custom dashboards loaded via ConfigMap
+            platform-overview:
+              url: https://raw.githubusercontent.com/AtomicAds/platform-monitoring/main/dashboards/platform-overview.json
+        
+        # Grafana configuration
+        grafana.ini:
+          server:
+            root_url: "https://grafana.company.com"
+          
+          security:
+            admin_user: admin
+            admin_password: admin123
+          
+          auth:
+            disable_login_form: false
+          
+          auth.anonymous:
+            enabled: false
+          
+          users:
+            allow_sign_up: false
+          
+          log:
+            mode: console
+            level: info
+        
+        # Service
+        service:
+          type: ClusterIP
+          port: 80
+        
+        # Ingress (optional)
+        ingress:
+          enabled: false
+  
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: platform-monitoring
+  
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

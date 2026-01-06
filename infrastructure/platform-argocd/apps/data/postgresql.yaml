@@ -1,0 +1,26 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: postgresql
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: postgresql
+    app.kubernetes.io/part-of: AtomicAds
+    tier: data
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: platform-data
+  source:
+    repoURL: https://github.com/AtomicAds/platform-kubernetes
+    targetRevision: main
+    path: databases/postgresql
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: platform-data
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

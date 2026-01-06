@@ -1,0 +1,36 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: argocd
+
+resources:
+  # Projects
+  - ../projects/projects.yaml
+  
+  # Infrastructure Apps (Wave 0)
+  - ../apps/infrastructure/vault.yaml
+  - ../apps/infrastructure/prometheus.yaml
+  - ../apps/infrastructure/grafana.yaml
+  
+  # Data Apps (Wave 1)
+  - ../apps/data/postgresql.yaml
+  - ../apps/data/clickhouse.yaml
+  - ../apps/data/redis.yaml
+  
+  # Service Apps (Wave 2)
+  - ../apps/services/service-auth.yaml
+  - ../apps/services/service-config.yaml
+  - ../apps/services/service-connector.yaml
+  - ../apps/services/service-etl.yaml
+  - ../apps/services/service-bronze.yaml
+  - ../apps/services/service-silver.yaml
+  - ../apps/services/service-gold.yaml
+  - ../apps/services/service-calculation.yaml
+  - ../apps/services/service-rules.yaml
+  - ../apps/services/service-analytics.yaml
+  - ../apps/services/service-notification.yaml
+  - ../apps/services/service-query.yaml
+
+commonLabels:
+  app.kubernetes.io/part-of: AtomicAds
+  managed-by: argocd

@@ -1,0 +1,32 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: service-gold
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: service-gold
+    app.kubernetes.io/part-of: AtomicAds
+    tier: application
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  project: platform-services
+  source:
+    repoURL: https://github.com/AtomicAds/platform-kubernetes
+    targetRevision: main
+    path: services/gold/overlays/dev
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: platform-apps
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

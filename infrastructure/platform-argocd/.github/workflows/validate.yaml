@@ -1,0 +1,45 @@
+name: Validate Manifests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install tools
+        run: |
+          # Install kubectl
+          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          chmod +x kubectl
+          sudo mv kubectl /usr/local/bin/
+          
+          # Install kustomize
+          curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
+          sudo mv kustomize /usr/local/bin/
+      
+      - name: Validate YAML
+        run: |
+          find . -name "*.yaml" -o -name "*.yml" | while read file; do
+            echo "Validating $file"
+            kubectl apply --dry-run=client -f "$file" || true
+          done
+      
+      - name: Build kustomization
+        run: |
+          kubectl kustomize app-of-apps/
+      
+      - name: Check for duplicates
+        run: |
+          # Check for duplicate application names
+          find apps -name "*.yaml" -exec grep "name:" {} \; | sort | uniq -d | grep -q . && echo "❌ Duplicate app names found" && exit 1 || echo "✅ No duplicates"
+      
+      - name: Validate projects
+        run: |
+          kubectl apply --dry-run=client -f projects/projects.yaml

@@ -1,0 +1,24 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: clickhouse
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: clickhouse
+    app.kubernetes.io/part-of: AtomicAds
+    tier: data
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: platform-data
+  source:
+    repoURL: https://github.com/AtomicAds/platform-kubernetes
+    targetRevision: main
+    path: databases/clickhouse
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: platform-data
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

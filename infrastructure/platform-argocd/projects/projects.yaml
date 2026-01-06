@@ -1,0 +1,250 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: platform-infrastructure
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: AtomicAds
+    tier: infrastructure
+spec:
+  description: Infrastructure services (Vault, Prometheus, Grafana, ArgoCD)
+  
+  # Source repositories
+  sourceRepos:
+    - 'https://github.com/AtomicAds/platform-kubernetes'
+    - 'https://github.com/AtomicAds/platform-helm-charts'
+    - 'https://helm.releases.hashicorp.com'
+    - 'https://prometheus-community.github.io/helm-charts'
+    - 'https://grafana.github.io/helm-charts'
+    - '*'  # Allow any repo for flexibility
+  
+  # Destination clusters and namespaces
+  destinations:
+    - namespace: 'platform-system'
+      server: https://kubernetes.default.svc
+    - namespace: 'platform-monitoring'
+      server: https://kubernetes.default.svc
+    - namespace: 'argocd'
+      server: https://kubernetes.default.svc
+  
+  # Cluster-scoped resources (infrastructure needs broader permissions)
+  clusterResourceWhitelist:
+    - group: '*'
+      kind: '*'
+  
+  # Namespace-scoped resources
+  namespaceResourceWhitelist:
+    - group: '*'
+      kind: '*'
+  
+  # RBAC Roles
+  roles:
+    # Platform team - full access
+    - name: admin
+      description: Full access to infrastructure applications
+      policies:
+        - p, proj:platform-infrastructure:admin, applications, *, platform-infrastructure/*, allow
+        - p, proj:platform-infrastructure:admin, clusters, get, *, allow
+        - p, proj:platform-infrastructure:admin, repositories, get, *, allow
+      groups:
+        - platform-team
+        - platform-admins
+    
+    # Read-only access for developers
+    - name: read-only
+      description: Read-only access to infrastructure applications
+      policies:
+        - p, proj:platform-infrastructure:read-only, applications, get, platform-infrastructure/*, allow
+        - p, proj:platform-infrastructure:read-only, applications, list, platform-infrastructure/*, allow
+      groups:
+        - developers
+        - viewers
+
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: platform-data
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: AtomicAds
+    tier: data
+spec:
+  description: Data layer services (PostgreSQL, ClickHouse, Redis, Kafka)
+  
+  # Source repositories
+  sourceRepos:
+    - 'https://github.com/AtomicAds/platform-kubernetes'
+    - 'https://github.com/AtomicAds/platform-databases'
+    - 'https://charts.bitnami.com/bitnami'
+    - 'https://clickhouse.github.io/clickhouse-operator'
+    - '*'
+  
+  # Destination clusters and namespaces
+  destinations:
+    - namespace: 'platform-data'
+      server: https://kubernetes.default.svc
+  
+  # Cluster-scoped resources (for storage classes, etc.)
+  clusterResourceWhitelist:
+    - group: ''
+      kind: Namespace
+    - group: 'storage.k8s.io'
+      kind: StorageClass
+    - group: 'snapshot.storage.k8s.io'
+      kind: VolumeSnapshotClass
+  
+  # Namespace-scoped resources
+  namespaceResourceWhitelist:
+    - group: '*'
+      kind: '*'
+  
+  # RBAC Roles
+  roles:
+    # Platform team and data team - full access
+    - name: admin
+      description: Full access to data layer applications
+      policies:
+        - p, proj:platform-data:admin, applications, *, platform-data/*, allow
+        - p, proj:platform-data:admin, clusters, get, *, allow
+        - p, proj:platform-data:admin, repositories, get, *, allow
+      groups:
+        - platform-team
+        - data-team
+        - platform-admins
+    
+    # Developers - limited access
+    - name: developer
+      description: View and sync data applications (no delete)
+      policies:
+        - p, proj:platform-data:developer, applications, get, platform-data/*, allow
+        - p, proj:platform-data:developer, applications, sync, platform-data/*, allow
+      groups:
+        - developers
+    
+    # Read-only for everyone else
+    - name: read-only
+      description: Read-only access to data layer applications
+      policies:
+        - p, proj:platform-data:read-only, applications, get, platform-data/*, allow
+        - p, proj:platform-data:read-only, applications, list, platform-data/*, allow
+      groups:
+        - viewers
+
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: platform-services
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: AtomicAds
+    tier: application
+spec:
+  description: Application microservices (12 services)
+  
+  # Source repositories
+  sourceRepos:
+    - 'https://github.com/AtomicAds/platform-kubernetes'
+    - 'https://github.com/AtomicAds/platform-helm-charts'
+    - 'https://github.com/AtomicAds/service-*'  # All service repos
+    - '*'
+  
+  # Destination clusters and namespaces
+  destinations:
+    - namespace: 'platform-apps'
+      server: https://kubernetes.default.svc
+  
+  # Cluster-scoped resources (minimal)
+  clusterResourceWhitelist:
+    - group: ''
+      kind: Namespace
+  
+  # Namespace-scoped resources (application services only need these)
+  namespaceResourceWhitelist:
+    - group: 'apps'
+      kind: Deployment
+    - group: 'apps'
+      kind: StatefulSet
+    - group: 'apps'
+      kind: DaemonSet
+    - group: ''
+      kind: Service
+    - group: ''
+      kind: ConfigMap
+    - group: ''
+      kind: Secret
+    - group: ''
+      kind: ServiceAccount
+    - group: ''
+      kind: PersistentVolumeClaim
+    - group: 'batch'
+      kind: Job
+    - group: 'batch'
+      kind: CronJob
+    - group: 'autoscaling'
+      kind: HorizontalPodAutoscaler
+    - group: 'networking.k8s.io'
+      kind: Ingress
+    - group: 'networking.k8s.io'
+      kind: NetworkPolicy
+    - group: 'policy'
+      kind: PodDisruptionBudget
+    - group: 'rbac.authorization.k8s.io'
+      kind: Role
+    - group: 'rbac.authorization.k8s.io'
+      kind: RoleBinding
+  
+  # RBAC Roles
+  roles:
+    # Platform team - full access
+    - name: admin
+      description: Full access to service applications
+      policies:
+        - p, proj:platform-services:admin, applications, *, platform-services/*, allow
+        - p, proj:platform-services:admin, clusters, get, *, allow
+        - p, proj:platform-services:admin, repositories, get, *, allow
+      groups:
+        - platform-team
+        - platform-admins
+    
+    # Developers - can deploy and sync
+    - name: developer
+      description: Deploy and sync service applications
+      policies:
+        - p, proj:platform-services:developer, applications, get, platform-services/*, allow
+        - p, proj:platform-services:developer, applications, create, platform-services/*, allow
+        - p, proj:platform-services:developer, applications, update, platform-services/*, allow
+        - p, proj:platform-services:developer, applications, sync, platform-services/*, allow
+        - p, proj:platform-services:developer, applications, action/*, platform-services/*, allow
+      groups:
+        - developers
+        - service-owners
+    
+    # Read-only for viewers
+    - name: read-only
+      description: Read-only access to service applications
+      policies:
+        - p, proj:platform-services:read-only, applications, get, platform-services/*, allow
+        - p, proj:platform-services:read-only, applications, list, platform-services/*, allow
+      groups:
+        - viewers
+        - stakeholders
+  
+  # Sync windows (optional - can restrict when syncs can happen)
+  syncWindows:
+    # Allow syncs anytime for dev
+    - kind: allow
+      schedule: '* * * * *'
+      duration: 24h
+      applications:
+        - '*'
+      namespaces:
+        - platform-apps
+      clusters:
+        - https://kubernetes.default.svc
+  
+  # Orphaned resources (clean up resources not in Git)
+  orphanedResources:
+    warn: true

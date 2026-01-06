@@ -1,0 +1,129 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: vault
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: vault
+    app.kubernetes.io/part-of: AtomicAds
+    tier: infrastructure
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: platform-infrastructure
+  
+  source:
+    repoURL: https://helm.releases.hashicorp.com
+    chart: vault
+    targetRevision: 0.27.0
+    helm:
+      releaseName: vault
+      values: |
+        # HashiCorp Vault Configuration
+        global:
+          enabled: true
+          tlsDisable: false
+        
+        injector:
+          enabled: true
+          replicas: 2
+          resources:
+            requests:
+              memory: 256Mi
+              cpu: 250m
+            limits:
+              memory: 512Mi
+              cpu: 500m
+        
+        server:
+          # High availability mode
+          ha:
+            enabled: true
+            replicas: 3
+            raft:
+              enabled: true
+              setNodeId: true
+              config: |
+                ui = true
+                
+                listener "tcp" {
+                  tls_disable = 0
+                  address = "[::]:8200"
+                  cluster_address = "[::]:8201"
+                  tls_cert_file = "/vault/userconfig/vault-server-tls/tls.crt"
+                  tls_key_file  = "/vault/userconfig/vault-server-tls/tls.key"
+                }
+                
+                storage "raft" {
+                  path = "/vault/data"
+                  retry_join {
+                    leader_api_addr = "https://vault-0.vault-internal:8200"
+                    leader_ca_cert_file = "/vault/userconfig/vault-server-tls/ca.crt"
+                  }
+                  retry_join {
+                    leader_api_addr = "https://vault-1.vault-internal:8200"
+                    leader_ca_cert_file = "/vault/userconfig/vault-server-tls/ca.crt"
+                  }
+                  retry_join {
+                    leader_api_addr = "https://vault-2.vault-internal:8200"
+                    leader_ca_cert_file = "/vault/userconfig/vault-server-tls/ca.crt"
+                  }
+                }
+                
+                service_registration "kubernetes" {}
+          
+          # Resource allocation
+          resources:
+            requests:
+              memory: 512Mi
+              cpu: 500m
+            limits:
+              memory: 1Gi
+              cpu: 1000m
+          
+          # Data storage
+          dataStorage:
+            enabled: true
+            size: 10Gi
+            storageClass: null  # Use default storage class
+            accessMode: ReadWriteOnce
+          
+          # Audit storage
+          auditStorage:
+            enabled: true
+            size: 5Gi
+            storageClass: null
+            accessMode: ReadWriteOnce
+        
+        ui:
+          enabled: true
+          serviceType: ClusterIP
+          externalPort: 8200
+  
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: platform-system
+  
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+  
+  # Health assessment
+  ignoreDifferences:
+    - group: admissionregistration.k8s.io
+      kind: MutatingWebhookConfiguration
+      jsonPointers:
+        - /webhooks/0/clientConfig/caBundle
