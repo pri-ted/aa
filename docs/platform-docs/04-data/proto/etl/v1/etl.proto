@@ -1,0 +1,461 @@
+// etl/v1/etl.proto
+// ETL Orchestrator - Workflow orchestration for data pipelines
+syntax = "proto3";
+package platform.etl.v1;
+
+option go_package = "github.com/org/platform/gen/go/etl/v1";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/struct.proto";
+import "common/errors.proto";
+import "common/pagination.proto";
+import "common/types.proto";
+
+// =============================================================================
+// ETL Service Definition
+// =============================================================================
+
+service ETLService {
+  // ---------------------------------------------------------------------------
+  // Execution Operations
+  // ---------------------------------------------------------------------------
+  
+  // TriggerPipeline manually triggers a pipeline execution
+  rpc TriggerPipeline(TriggerPipelineRequest) returns (TriggerPipelineResponse);
+  
+  // GetExecution retrieves execution details
+  rpc GetExecution(GetExecutionRequest) returns (GetExecutionResponse);
+  
+  // ListExecutions returns executions for a pipeline or org
+  rpc ListExecutions(ListExecutionsRequest) returns (ListExecutionsResponse);
+  
+  // CancelExecution cancels a running execution
+  rpc CancelExecution(CancelExecutionRequest) returns (CancelExecutionResponse);
+  
+  // RetryExecution retries a failed execution
+  rpc RetryExecution(RetryExecutionRequest) returns (RetryExecutionResponse);
+  
+  // ---------------------------------------------------------------------------
+  // Monitoring Operations
+  // ---------------------------------------------------------------------------
+  
+  // GetExecutionLogs returns logs for an execution
+  rpc GetExecutionLogs(GetExecutionLogsRequest) returns (GetExecutionLogsResponse);
+  
+  // StreamExecutionLogs streams logs in real-time
+  rpc StreamExecutionLogs(StreamExecutionLogsRequest) returns (stream ExecutionLogEntry);
+  
+  // GetDataQualityMetrics returns data quality metrics
+  rpc GetDataQualityMetrics(GetDataQualityMetricsRequest) returns (GetDataQualityMetricsResponse);
+  
+  // ---------------------------------------------------------------------------
+  // Backfill Operations
+  // ---------------------------------------------------------------------------
+  
+  // StartBackfill initiates a historical data backfill
+  rpc StartBackfill(StartBackfillRequest) returns (StartBackfillResponse);
+  
+  // GetBackfillStatus returns backfill progress
+  rpc GetBackfillStatus(GetBackfillStatusRequest) returns (GetBackfillStatusResponse);
+  
+  // CancelBackfill cancels an ongoing backfill
+  rpc CancelBackfill(CancelBackfillRequest) returns (CancelBackfillResponse);
+}
+
+// =============================================================================
+// Execution Messages
+// =============================================================================
+
+message Execution {
+  // Unique execution ID
+  string id = 1;
+  
+  // Pipeline ID
+  string pipeline_id = 2;
+  
+  // Pipeline name (denormalized for convenience)
+  string pipeline_name = 3;
+  
+  // Organization ID
+  int64 org_id = 4;
+  
+  // Execution status
+  platform.common.ExecutionStatus status = 5;
+  
+  // Trigger type
+  TriggerType trigger_type = 6;
+  
+  // User who triggered (if manual)
+  optional int64 triggered_by = 7;
+  
+  // Execution parameters
+  google.protobuf.Struct parameters = 8;
+  
+  // Layer-specific progress
+  repeated LayerProgress layers = 9;
+  
+  // Overall metrics
+  ExecutionMetrics metrics = 10;
+  
+  // Error details (if failed)
+  optional ExecutionError error = 11;
+  
+  // Timestamps
+  google.protobuf.Timestamp created_at = 12;
+  optional google.protobuf.Timestamp started_at = 13;
+  optional google.protobuf.Timestamp completed_at = 14;
+}
+
+enum TriggerType {
+  TRIGGER_TYPE_UNSPECIFIED = 0;
+  TRIGGER_TYPE_SCHEDULED = 1;
+  TRIGGER_TYPE_MANUAL = 2;
+  TRIGGER_TYPE_RETRY = 3;
+  TRIGGER_TYPE_BACKFILL = 4;
+  TRIGGER_TYPE_DEPENDENCY = 5;
+}
+
+message LayerProgress {
+  // Layer name (bronze, silver, gold)
+  string layer = 1;
+  
+  // Layer status
+  platform.common.ExecutionStatus status = 2;
+  
+  // Records processed
+  int64 records_processed = 3;
+  
+  // Records with issues
+  int64 records_failed = 4;
+  
+  // Data size in bytes
+  int64 size_bytes = 5;
+  
+  // Duration in milliseconds
+  int64 duration_ms = 6;
+  
+  // Tables/partitions affected
+  repeated string tables_updated = 7;
+  
+  // Timestamps
+  optional google.protobuf.Timestamp started_at = 8;
+  optional google.protobuf.Timestamp completed_at = 9;
+}
+
+message ExecutionMetrics {
+  // Total records processed
+  int64 total_records = 1;
+  
+  // Records filtered/dropped
+  int64 filtered_records = 2;
+  
+  // Total data size
+  int64 total_size_bytes = 3;
+  
+  // Total duration
+  int64 total_duration_ms = 4;
+  
+  // Data quality score (0-100)
+  double quality_score = 5;
+  
+  // Cost estimate (if applicable)
+  optional double estimated_cost = 6;
+}
+
+message ExecutionError {
+  // Error code
+  string code = 1;
+  
+  // Error message
+  string message = 2;
+  
+  // Layer where error occurred
+  string layer = 3;
+  
+  // Stack trace (for debugging)
+  optional string stack_trace = 4;
+  
+  // Whether error is retryable
+  bool retryable = 5;
+}
+
+message TriggerPipelineRequest {
+  string pipeline_id = 1;
+  int64 org_id = 2;
+  
+  // Optional: override date range
+  optional platform.common.DateRange date_range = 3;
+  
+  // Optional: additional parameters
+  optional google.protobuf.Struct parameters = 4;
+  
+  // User triggering the execution
+  int64 triggered_by = 5;
+  
+  // Skip if already running
+  bool skip_if_running = 6;
+}
+
+message TriggerPipelineResponse {
+  Execution execution = 1;
+  platform.common.Error error = 2;
+  
+  // If skipped due to already running
+  bool skipped = 3;
+  optional string existing_execution_id = 4;
+}
+
+message GetExecutionRequest {
+  string execution_id = 1;
+}
+
+message GetExecutionResponse {
+  Execution execution = 1;
+  platform.common.Error error = 2;
+}
+
+message ListExecutionsRequest {
+  int64 org_id = 1;
+  
+  // Optional: filter by pipeline
+  optional string pipeline_id = 2;
+  
+  // Optional: filter by status
+  optional platform.common.ExecutionStatus status = 3;
+  
+  // Optional: filter by date range
+  optional platform.common.DateRange date_range = 4;
+  
+  platform.common.PaginationRequest pagination = 5;
+}
+
+message ListExecutionsResponse {
+  repeated Execution executions = 1;
+  platform.common.PaginationResponse pagination = 2;
+}
+
+message CancelExecutionRequest {
+  string execution_id = 1;
+  
+  // Reason for cancellation
+  optional string reason = 2;
+}
+
+message CancelExecutionResponse {
+  bool success = 1;
+  platform.common.Error error = 2;
+}
+
+message RetryExecutionRequest {
+  string execution_id = 1;
+  
+  // Optional: start from specific layer
+  optional string from_layer = 2;
+}
+
+message RetryExecutionResponse {
+  Execution new_execution = 1;
+  platform.common.Error error = 2;
+}
+
+// =============================================================================
+// Logging Messages
+// =============================================================================
+
+message GetExecutionLogsRequest {
+  string execution_id = 1;
+  
+  // Optional: filter by layer
+  optional string layer = 2;
+  
+  // Optional: filter by level
+  optional LogLevel level = 3;
+  
+  // Optional: search in message
+  optional string search = 4;
+  
+  platform.common.PaginationRequest pagination = 5;
+}
+
+message GetExecutionLogsResponse {
+  repeated ExecutionLogEntry logs = 1;
+  platform.common.PaginationResponse pagination = 2;
+}
+
+message StreamExecutionLogsRequest {
+  string execution_id = 1;
+  
+  // Optional: filter by layer
+  optional string layer = 2;
+  
+  // Start from this timestamp (for resuming)
+  optional google.protobuf.Timestamp since = 3;
+}
+
+message ExecutionLogEntry {
+  google.protobuf.Timestamp timestamp = 1;
+  LogLevel level = 2;
+  string layer = 3;
+  string message = 4;
+  optional google.protobuf.Struct metadata = 5;
+}
+
+enum LogLevel {
+  LOG_LEVEL_UNSPECIFIED = 0;
+  LOG_LEVEL_DEBUG = 1;
+  LOG_LEVEL_INFO = 2;
+  LOG_LEVEL_WARNING = 3;
+  LOG_LEVEL_ERROR = 4;
+}
+
+// =============================================================================
+// Data Quality Messages
+// =============================================================================
+
+message GetDataQualityMetricsRequest {
+  int64 org_id = 1;
+  
+  // Optional: filter by pipeline
+  optional string pipeline_id = 2;
+  
+  // Time range
+  platform.common.DateRange date_range = 3;
+}
+
+message GetDataQualityMetricsResponse {
+  // Overall quality summary
+  QualitySummary summary = 1;
+  
+  // Quality by pipeline
+  repeated PipelineQuality by_pipeline = 2;
+  
+  // Recent issues
+  repeated QualityIssue recent_issues = 3;
+}
+
+message QualitySummary {
+  // Average quality score (0-100)
+  double avg_quality_score = 1;
+  
+  // Total records processed
+  int64 total_records = 2;
+  
+  // Records with issues
+  int64 records_with_issues = 3;
+  
+  // Issue breakdown
+  map<string, int64> issues_by_type = 4;
+}
+
+message PipelineQuality {
+  string pipeline_id = 1;
+  string pipeline_name = 2;
+  double quality_score = 3;
+  int64 records_processed = 4;
+  int64 records_with_issues = 5;
+}
+
+message QualityIssue {
+  google.protobuf.Timestamp timestamp = 1;
+  string pipeline_id = 2;
+  string execution_id = 3;
+  string layer = 4;
+  string issue_type = 5;
+  string description = 6;
+  int64 affected_records = 7;
+  IssueSeverity severity = 8;
+}
+
+enum IssueSeverity {
+  ISSUE_SEVERITY_UNSPECIFIED = 0;
+  ISSUE_SEVERITY_LOW = 1;
+  ISSUE_SEVERITY_MEDIUM = 2;
+  ISSUE_SEVERITY_HIGH = 3;
+  ISSUE_SEVERITY_CRITICAL = 4;
+}
+
+// =============================================================================
+// Backfill Messages
+// =============================================================================
+
+message StartBackfillRequest {
+  string pipeline_id = 1;
+  int64 org_id = 2;
+  
+  // Date range to backfill
+  platform.common.DateRange date_range = 3;
+  
+  // Concurrency (number of parallel jobs)
+  int32 concurrency = 4;
+  
+  // Priority
+  BackfillPriority priority = 5;
+  
+  // User initiating backfill
+  int64 initiated_by = 6;
+}
+
+enum BackfillPriority {
+  BACKFILL_PRIORITY_UNSPECIFIED = 0;
+  BACKFILL_PRIORITY_LOW = 1;
+  BACKFILL_PRIORITY_NORMAL = 2;
+  BACKFILL_PRIORITY_HIGH = 3;
+}
+
+message StartBackfillResponse {
+  // Backfill job ID
+  string backfill_id = 1;
+  
+  // Estimated duration
+  int64 estimated_duration_seconds = 2;
+  
+  // Number of date chunks
+  int32 total_chunks = 3;
+  
+  platform.common.Error error = 4;
+}
+
+message GetBackfillStatusRequest {
+  string backfill_id = 1;
+}
+
+message GetBackfillStatusResponse {
+  string backfill_id = 1;
+  
+  // Overall status
+  platform.common.ExecutionStatus status = 2;
+  
+  // Progress
+  int32 completed_chunks = 3;
+  int32 total_chunks = 4;
+  int32 failed_chunks = 5;
+  
+  // Current date being processed
+  optional string current_date = 6;
+  
+  // Records processed
+  int64 total_records = 7;
+  
+  // Timestamps
+  google.protobuf.Timestamp started_at = 8;
+  optional google.protobuf.Timestamp completed_at = 9;
+  optional google.protobuf.Timestamp estimated_completion = 10;
+  
+  // Errors (if any)
+  repeated BackfillChunkError errors = 11;
+}
+
+message BackfillChunkError {
+  string date = 1;
+  string error_message = 2;
+  int32 retry_count = 3;
+}
+
+message CancelBackfillRequest {
+  string backfill_id = 1;
+}
+
+message CancelBackfillResponse {
+  bool success = 1;
+  platform.common.Error error = 2;
+}

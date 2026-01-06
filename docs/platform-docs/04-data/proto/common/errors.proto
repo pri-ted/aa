@@ -1,0 +1,84 @@
+// common/errors.proto
+// Standard error types for consistent error handling across services
+syntax = "proto3";
+package platform.common;
+
+option go_package = "github.com/org/platform/gen/go/common";
+
+// Error represents a structured error response
+message Error {
+  // Machine-readable error code (e.g., "AUTH_001", "CONF_002")
+  string code = 1;
+  
+  // Human-readable error message
+  string message = 2;
+  
+  // Additional error details as key-value pairs
+  map<string, string> details = 3;
+  
+  // Field-specific errors (for validation errors)
+  repeated FieldError field_errors = 4;
+  
+  // Request ID for tracing
+  string request_id = 5;
+}
+
+// FieldError represents a validation error on a specific field
+message FieldError {
+  // Field name (e.g., "email", "config.schedule.expression")
+  string field = 1;
+  
+  // Error code for this field
+  string code = 2;
+  
+  // Human-readable error message
+  string message = 3;
+}
+
+// ErrorCode enumeration for common error types
+enum ErrorCode {
+  ERROR_CODE_UNSPECIFIED = 0;
+  
+  // Authentication errors (AUTH_xxx)
+  ERROR_CODE_INVALID_CREDENTIALS = 1;
+  ERROR_CODE_TOKEN_EXPIRED = 2;
+  ERROR_CODE_TOKEN_INVALID = 3;
+  ERROR_CODE_INSUFFICIENT_PERMISSIONS = 4;
+  
+  // Validation errors (VAL_xxx)
+  ERROR_CODE_INVALID_INPUT = 10;
+  ERROR_CODE_REQUIRED_FIELD = 11;
+  ERROR_CODE_INVALID_FORMAT = 12;
+  ERROR_CODE_OUT_OF_RANGE = 13;
+  
+  // Resource errors (RES_xxx)
+  ERROR_CODE_NOT_FOUND = 20;
+  ERROR_CODE_ALREADY_EXISTS = 21;
+  ERROR_CODE_CONFLICT = 22;
+  ERROR_CODE_DELETED = 23;
+  
+  // Rate limiting (RATE_xxx)
+  ERROR_CODE_RATE_LIMITED = 30;
+  ERROR_CODE_QUOTA_EXCEEDED = 31;
+  
+  // Internal errors (INT_xxx)
+  ERROR_CODE_INTERNAL = 40;
+  ERROR_CODE_UNAVAILABLE = 41;
+  ERROR_CODE_TIMEOUT = 42;
+  ERROR_CODE_DEPENDENCY_FAILED = 43;
+}
+
+// ErrorMapping provides HTTP status code mapping
+// Used by gRPC-gateway for REST API responses
+//
+// | gRPC Code | HTTP Status | ErrorCode |
+// |-----------|-------------|-----------|
+// | OK | 200 | - |
+// | INVALID_ARGUMENT | 400 | VAL_xxx |
+// | UNAUTHENTICATED | 401 | AUTH_001, AUTH_002 |
+// | PERMISSION_DENIED | 403 | AUTH_004 |
+// | NOT_FOUND | 404 | RES_001 |
+// | ALREADY_EXISTS | 409 | RES_002 |
+// | RESOURCE_EXHAUSTED | 429 | RATE_xxx |
+// | INTERNAL | 500 | INT_xxx |
+// | UNAVAILABLE | 503 | INT_002 |

@@ -1,0 +1,145 @@
+{
+  "type": "record",
+  "name": "ConnectorDataRaw",
+  "namespace": "platform.events.connector",
+  "doc": "Event published when raw data is fetched from a DSP connector",
+  "fields": [
+    {
+      "name": "metadata",
+      "type": "platform.events.common.EventMetadata",
+      "doc": "Standard event metadata"
+    },
+    {
+      "name": "connector_id",
+      "type": "string",
+      "doc": "Connector that fetched the data"
+    },
+    {
+      "name": "connector_type",
+      "type": {
+        "type": "enum",
+        "name": "ConnectorType",
+        "symbols": ["DV360", "TTD", "META", "GOOGLE_ADS", "GOOGLE_SHEETS", "SALESFORCE", "BOOKING_DB"]
+      },
+      "doc": "Type of connector"
+    },
+    {
+      "name": "request_id",
+      "type": "string",
+      "doc": "Original fetch request ID"
+    },
+    {
+      "name": "pipeline_id",
+      "type": ["null", "string"],
+      "default": null,
+      "doc": "Pipeline that triggered this fetch (if scheduled)"
+    },
+    {
+      "name": "report_type",
+      "type": {
+        "type": "enum",
+        "name": "ReportType",
+        "symbols": ["CAMPAIGN_PERFORMANCE", "INSERTION_ORDER_PERFORMANCE", "LINE_ITEM_PERFORMANCE", "CREATIVE_PERFORMANCE", "SDF", "BUDGET", "AUDIENCE"]
+      },
+      "doc": "Type of report fetched"
+    },
+    {
+      "name": "date_range",
+      "type": {
+        "type": "record",
+        "name": "DateRange",
+        "fields": [
+          {"name": "start_date", "type": "string", "doc": "Start date (YYYY-MM-DD)"},
+          {"name": "end_date", "type": "string", "doc": "End date (YYYY-MM-DD)"}
+        ]
+      },
+      "doc": "Date range of the fetched data"
+    },
+    {
+      "name": "storage",
+      "type": {
+        "type": "record",
+        "name": "StorageLocation",
+        "fields": [
+          {"name": "path", "type": "string", "doc": "S3/GCS path to the data"},
+          {"name": "format", "type": "string", "default": "json", "doc": "Data format (json, csv, parquet)"},
+          {"name": "compression", "type": ["null", "string"], "default": null, "doc": "Compression type (gzip, zstd, none)"}
+        ]
+      },
+      "doc": "Where the raw data is stored"
+    },
+    {
+      "name": "record_count",
+      "type": "long",
+      "doc": "Number of records fetched"
+    },
+    {
+      "name": "size_bytes",
+      "type": "long",
+      "doc": "Size of the data in bytes"
+    },
+    {
+      "name": "checksum",
+      "type": "string",
+      "doc": "SHA-256 checksum of the data"
+    },
+    {
+      "name": "accounts",
+      "type": {
+        "type": "array",
+        "items": {
+          "type": "record",
+          "name": "AccountInfo",
+          "fields": [
+            {"name": "account_id", "type": "string"},
+            {"name": "account_name", "type": ["null", "string"], "default": null}
+          ]
+        }
+      },
+      "doc": "DSP accounts included in this data"
+    },
+    {
+      "name": "metrics_included",
+      "type": {"type": "array", "items": "string"},
+      "doc": "List of metrics included in the data"
+    },
+    {
+      "name": "dimensions_included",
+      "type": {"type": "array", "items": "string"},
+      "doc": "List of dimensions included in the data"
+    },
+    {
+      "name": "fetch_duration_ms",
+      "type": "long",
+      "doc": "Time taken to fetch the data (milliseconds)"
+    },
+    {
+      "name": "dsp_response_time_ms",
+      "type": ["null", "long"],
+      "default": null,
+      "doc": "DSP API response time (milliseconds)"
+    },
+    {
+      "name": "data_freshness",
+      "type": ["null", "long"],
+      "default": null,
+      "logicalType": "timestamp-millis",
+      "doc": "Timestamp of the most recent data point in the fetched data"
+    },
+    {
+      "name": "retry_count",
+      "type": "int",
+      "default": 0,
+      "doc": "Number of retries before successful fetch"
+    },
+    {
+      "name": "warnings",
+      "type": {
+        "type": "array",
+        "items": "string"
+      },
+      "default": [],
+      "doc": "Non-fatal warnings during fetch"
+    }
+  ]
+}

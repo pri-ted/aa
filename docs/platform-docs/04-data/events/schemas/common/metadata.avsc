@@ -1,0 +1,93 @@
+{
+  "type": "record",
+  "name": "EventMetadata",
+  "namespace": "platform.events.common",
+  "doc": "Common metadata included in all events",
+  "fields": [
+    {
+      "name": "event_id",
+      "type": "string",
+      "doc": "Unique event identifier (UUID)"
+    },
+    {
+      "name": "event_type",
+      "type": "string",
+      "doc": "Event type identifier (e.g., 'connector.data.raw')"
+    },
+    {
+      "name": "event_version",
+      "type": "string",
+      "default": "1.0.0",
+      "doc": "Schema version for this event type"
+    },
+    {
+      "name": "timestamp",
+      "type": "long",
+      "logicalType": "timestamp-millis",
+      "doc": "Event creation timestamp (Unix milliseconds)"
+    },
+    {
+      "name": "source",
+      "type": {
+        "type": "record",
+        "name": "EventSource",
+        "fields": [
+          {
+            "name": "service",
+            "type": "string",
+            "doc": "Service that produced the event"
+          },
+          {
+            "name": "instance",
+            "type": "string",
+            "doc": "Service instance identifier (pod name)"
+          },
+          {
+            "name": "version",
+            "type": ["null", "string"],
+            "default": null,
+            "doc": "Service version"
+          }
+        ]
+      },
+      "doc": "Event source information"
+    },
+    {
+      "name": "correlation_id",
+      "type": ["null", "string"],
+      "default": null,
+      "doc": "Correlation ID for request tracing"
+    },
+    {
+      "name": "causation_id",
+      "type": ["null", "string"],
+      "default": null,
+      "doc": "ID of the event that caused this event"
+    },
+    {
+      "name": "org_id",
+      "type": "int",
+      "doc": "Organization ID (used for partitioning)"
+    },
+    {
+      "name": "user_id",
+      "type": ["null", "int"],
+      "default": null,
+      "doc": "User ID if event was triggered by a user action"
+    },
+    {
+      "name": "trace_context",
+      "type": ["null", {
+        "type": "record",
+        "name": "TraceContext",
+        "fields": [
+          {"name": "trace_id", "type": "string"},
+          {"name": "span_id", "type": "string"},
+          {"name": "parent_span_id", "type": ["null", "string"], "default": null}
+        ]
+      }],
+      "default": null,
+      "doc": "OpenTelemetry trace context"
+    }
+  ]
+}

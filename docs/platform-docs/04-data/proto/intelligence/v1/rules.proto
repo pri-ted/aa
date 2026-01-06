@@ -1,0 +1,378 @@
+// intelligence/v1/rules.proto
+// Rule Engine - Rule evaluation, scheduling, and action execution
+syntax = "proto3";
+package platform.intelligence.v1;
+
+option go_package = "github.com/org/platform/gen/go/intelligence/v1";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/struct.proto";
+import "common/errors.proto";
+import "common/pagination.proto";
+import "common/types.proto";
+
+// =============================================================================
+// Rule Engine Service Definition
+// =============================================================================
+
+service RuleEngineService {
+  // ---------------------------------------------------------------------------
+  // Rule Evaluation
+  // ---------------------------------------------------------------------------
+  
+  // EvaluateRule evaluates a rule against provided data
+  rpc EvaluateRule(EvaluateRuleRequest) returns (EvaluateRuleResponse);
+  
+  // BatchEvaluateRules evaluates multiple rules against data
+  rpc BatchEvaluateRules(BatchEvaluateRulesRequest) returns (BatchEvaluateRulesResponse);
+  
+  // TestRule dry-runs a rule against historical data
+  rpc TestRule(TestRuleRequest) returns (TestRuleResponse);
+  
+  // ---------------------------------------------------------------------------
+  // Rule Execution
+  // ---------------------------------------------------------------------------
+  
+  // TriggerRuleEvaluation manually triggers rule evaluation for an org
+  rpc TriggerRuleEvaluation(TriggerRuleEvaluationRequest) returns (TriggerRuleEvaluationResponse);
+  
+  // GetEvaluationStatus returns status of a rule evaluation run
+  rpc GetEvaluationStatus(GetEvaluationStatusRequest) returns (GetEvaluationStatusResponse);
+  
+  // ---------------------------------------------------------------------------
+  // Evaluation History
+  // ---------------------------------------------------------------------------
+  
+  // ListRuleMatches returns historical rule matches
+  rpc ListRuleMatches(ListRuleMatchesRequest) returns (ListRuleMatchesResponse);
+  
+  // GetRuleMatch retrieves details of a specific match
+  rpc GetRuleMatch(GetRuleMatchRequest) returns (GetRuleMatchResponse);
+  
+  // ---------------------------------------------------------------------------
+  // Action Execution
+  // ---------------------------------------------------------------------------
+  
+  // ExecuteAction manually executes an action
+  rpc ExecuteAction(ExecuteActionRequest) returns (ExecuteActionResponse);
+  
+  // GetActionStatus returns status of an action execution
+  rpc GetActionStatus(GetActionStatusRequest) returns (GetActionStatusResponse);
+}
+
+// =============================================================================
+// Evaluation Messages
+// =============================================================================
+
+message EvaluateRuleRequest {
+  // Rule ID to evaluate
+  string rule_id = 1;
+  
+  // Organization context
+  int64 org_id = 2;
+  
+  // Data to evaluate against
+  google.protobuf.Struct data = 3;
+  
+  // Entity context
+  platform.common.EntityReference entity = 4;
+  
+  // Dry run (don't execute actions)
+  bool dry_run = 5;
+}
+
+message EvaluateRuleResponse {
+  // Whether rule conditions matched
+  bool matched = 1;
+  
+  // Individual condition results
+  repeated ConditionResult condition_results = 2;
+  
+  // Actions that would be/were executed
+  repeated ActionResult action_results = 3;
+  
+  // Evaluation time (microseconds)
+  int64 evaluation_time_us = 4;
+  
+  platform.common.Error error = 5;
+}
+
+message ConditionResult {
+  // Condition expression
+  string condition = 1;
+  
+  // Whether condition matched
+  bool matched = 2;
+  
+  // Actual value evaluated
+  string actual_value = 3;
+  
+  // Expected value
+  string expected_value = 4;
+  
+  // Operator used
+  string operator = 5;
+}
+
+message ActionResult {
+  // Action type
+  string action_type = 1;
+  
+  // Action status
+  ActionStatus status = 2;
+  
+  // Result details
+  google.protobuf.Struct result = 3;
+  
+  // Error if failed
+  optional string error = 4;
+  
+  // Execution time (ms)
+  int64 execution_time_ms = 5;
+}
+
+enum ActionStatus {
+  ACTION_STATUS_UNSPECIFIED = 0;
+  ACTION_STATUS_PENDING = 1;
+  ACTION_STATUS_EXECUTED = 2;
+  ACTION_STATUS_SKIPPED = 3;
+  ACTION_STATUS_FAILED = 4;
+  ACTION_STATUS_DRY_RUN = 5;
+}
+
+message BatchEvaluateRulesRequest {
+  // Organization context
+  int64 org_id = 1;
+  
+  // Module to evaluate rules for
+  optional platform.common.ModuleType module = 2;
+  
+  // Specific rule IDs (empty = all enabled rules)
+  repeated string rule_ids = 3;
+  
+  // Entities to evaluate
+  repeated EntityData entities = 4;
+  
+  // Dry run
+  bool dry_run = 5;
+}
+
+message EntityData {
+  platform.common.EntityReference entity = 1;
+  google.protobuf.Struct data = 2;
+}
+
+message BatchEvaluateRulesResponse {
+  // Results per entity
+  repeated EntityEvaluationResult results = 1;
+  
+  // Summary
+  BatchEvaluationSummary summary = 2;
+  
+  platform.common.Error error = 3;
+}
+
+message EntityEvaluationResult {
+  platform.common.EntityReference entity = 1;
+  
+  // Rules that matched
+  repeated RuleMatchResult matches = 2;
+  
+  // Rules evaluated
+  int32 rules_evaluated = 3;
+}
+
+message RuleMatchResult {
+  string rule_id = 1;
+  string rule_name = 2;
+  bool matched = 3;
+  repeated ActionResult actions = 4;
+}
+
+message BatchEvaluationSummary {
+  int32 total_entities = 1;
+  int32 total_rules = 2;
+  int32 total_matches = 3;
+  int32 actions_executed = 4;
+  int32 actions_failed = 5;
+  int64 total_evaluation_time_us = 6;
+}
+
+message TestRuleRequest {
+  // Rule ID to test
+  string rule_id = 1;
+  
+  // Organization context
+  int64 org_id = 2;
+  
+  // Historical date range to test against
+  platform.common.DateRange date_range = 3;
+  
+  // Sample size (max entities to test)
+  int32 sample_size = 4;
+}
+
+message TestRuleResponse {
+  // Total entities evaluated
+  int32 total_evaluated = 1;
+  
+  // Entities that matched
+  int32 total_matches = 2;
+  
+  // Sample of matches
+  repeated TestRuleMatch sample_matches = 3;
+  
+  // Match rate (0.0 - 1.0)
+  double match_rate = 4;
+  
+  platform.common.Error error = 5;
+}
+
+message TestRuleMatch {
+  platform.common.EntityReference entity = 1;
+  google.protobuf.Timestamp match_time = 2;
+  repeated ConditionResult condition_results = 3;
+  repeated string would_trigger_actions = 4;
+}
+
+// =============================================================================
+// Execution Messages
+// =============================================================================
+
+message TriggerRuleEvaluationRequest {
+  int64 org_id = 1;
+  
+  // Optional: specific module
+  optional platform.common.ModuleType module = 2;
+  
+  // Optional: specific rule IDs
+  repeated string rule_ids = 3;
+  
+  // User triggering evaluation
+  int64 triggered_by = 4;
+}
+
+message TriggerRuleEvaluationResponse {
+  // Evaluation run ID
+  string evaluation_id = 1;
+  
+  // Number of rules queued
+  int32 rules_queued = 2;
+  
+  platform.common.Error error = 3;
+}
+
+message GetEvaluationStatusRequest {
+  string evaluation_id = 1;
+}
+
+message GetEvaluationStatusResponse {
+  string evaluation_id = 1;
+  
+  platform.common.ExecutionStatus status = 2;
+  
+  // Progress
+  int32 rules_completed = 3;
+  int32 rules_total = 4;
+  int32 matches_found = 5;
+  int32 actions_executed = 6;
+  
+  // Timestamps
+  google.protobuf.Timestamp started_at = 7;
+  optional google.protobuf.Timestamp completed_at = 8;
+  
+  platform.common.Error error = 9;
+}
+
+// =============================================================================
+// History Messages
+// =============================================================================
+
+message ListRuleMatchesRequest {
+  int64 org_id = 1;
+  
+  // Optional filters
+  optional string rule_id = 2;
+  optional platform.common.EntityType entity_type = 3;
+  optional string entity_id = 4;
+  optional platform.common.DateRange date_range = 5;
+  
+  platform.common.PaginationRequest pagination = 6;
+}
+
+message ListRuleMatchesResponse {
+  repeated RuleMatch matches = 1;
+  platform.common.PaginationResponse pagination = 2;
+}
+
+message RuleMatch {
+  string id = 1;
+  string rule_id = 2;
+  string rule_name = 3;
+  platform.common.EntityReference entity = 4;
+  google.protobuf.Timestamp matched_at = 5;
+  repeated string actions_executed = 6;
+  platform.common.AlertSeverity severity = 7;
+}
+
+message GetRuleMatchRequest {
+  string match_id = 1;
+}
+
+message GetRuleMatchResponse {
+  RuleMatch match = 1;
+  
+  // Full condition results
+  repeated ConditionResult conditions = 2;
+  
+  // Full action results
+  repeated ActionResult actions = 3;
+  
+  // Snapshot of data at match time
+  google.protobuf.Struct data_snapshot = 4;
+  
+  platform.common.Error error = 5;
+}
+
+// =============================================================================
+// Action Messages
+// =============================================================================
+
+message ExecuteActionRequest {
+  // Action type
+  string action_type = 1;
+  
+  // Action parameters
+  google.protobuf.Struct parameters = 2;
+  
+  // Context
+  int64 org_id = 3;
+  optional platform.common.EntityReference entity = 4;
+  
+  // User executing
+  int64 executed_by = 5;
+}
+
+message ExecuteActionResponse {
+  // Execution ID
+  string execution_id = 1;
+  
+  ActionStatus status = 2;
+  
+  google.protobuf.Struct result = 3;
+  
+  platform.common.Error error = 4;
+}
+
+message GetActionStatusRequest {
+  string execution_id = 1;
+}
+
+message GetActionStatusResponse {
+  string execution_id = 1;
+  string action_type = 2;
+  ActionStatus status = 3;
+  google.protobuf.Struct result = 4;
+  google.protobuf.Timestamp executed_at = 5;
+  optional string error = 6;
+}

@@ -1,0 +1,272 @@
+# Kafka Topic Configuration
+# This file defines all Kafka topics used by the platform
+
+version: "1.0"
+
+# Default settings applied to all topics unless overridden
+defaults:
+  replication_factor: 3
+  min_insync_replicas: 2
+  cleanup_policy: delete
+  compression_type: zstd
+  message_timestamp_type: CreateTime
+
+# =============================================================================
+# Data Pipeline Topics
+# =============================================================================
+
+topics:
+  # ---------------------------------------------------------------------------
+  # Connector Layer
+  # ---------------------------------------------------------------------------
+  connector.data.raw:
+    description: "Raw data fetched from DSP connectors"
+    partitions: 12
+    retention_ms: 604800000  # 7 days
+    partition_key: org_id
+    schema: connector/data-raw.avsc
+    producers:
+      - connector-service
+    consumers:
+      - bronze-service
+    alerts:
+      lag_threshold: 1000
+      throughput_min: 100  # messages/hour
+
+  # ---------------------------------------------------------------------------
+  # Bronze Layer
+  # ---------------------------------------------------------------------------
+  bronze.data.cleaned:
+    description: "Cleaned and deduplicated data from Bronze layer"
+    partitions: 12
+    retention_ms: 604800000  # 7 days
+    partition_key: org_id
+    schema: bronze/data-cleaned.avsc
+    producers:
+      - bronze-service
+    consumers:
+      - silver-service
+    alerts:
+      lag_threshold: 500
+
+  # ---------------------------------------------------------------------------
+  # Silver Layer
+  # ---------------------------------------------------------------------------
+  silver.data.processed:
+    description: "Validated and normalized data from Silver layer"
+    partitions: 12
+    retention_ms: 604800000  # 7 days
+    partition_key: org_id
+    schema: silver/data-processed.avsc
+    producers:
+      - silver-service
+    consumers:
+      - gold-service
+    alerts:
+      lag_threshold: 500
+
+  silver.quality.issues:
+    description: "Data quality issues detected in Silver layer"
+    partitions: 6
+    retention_ms: 2592000000  # 30 days
+    partition_key: org_id
+    producers:
+      - silver-service
+    consumers:
+      - analytics-service
+      - notification-service
+
+  # ---------------------------------------------------------------------------
+  # Gold Layer
+  # ---------------------------------------------------------------------------
+  gold.data.ready:
+    description: "Analytics-ready data available for consumption"
+    partitions: 12
+    retention_ms: 604800000  # 7 days
+    partition_key: org_id
+    schema: gold/data-ready.avsc
+    producers:
+      - gold-service
+    consumers:
+      - rule-engine
+      - analytics-service
+      - query-service
+    alerts:
+      lag_threshold: 100
+
+# =============================================================================
+# Intelligence Topics
+# =============================================================================
+
+  rules.alerts.triggered:
+    description: "Alerts triggered by rule engine"
+    partitions: 6
+    retention_ms: 2592000000  # 30 days
+    partition_key: org_id
+    schema: rules/alerts.avsc
+    producers:
+      - rule-engine
+    consumers:
+      - notification-service
+      - analytics-service
+    alerts:
+      lag_threshold: 50
+
+  rules.evaluations:
+    description: "Rule evaluation results (for analytics)"
+    partitions: 6
+    retention_ms: 604800000  # 7 days
+    cleanup_policy: delete
+    partition_key: org_id
+    producers:
+      - rule-engine
+    consumers:
+      - analytics-service
+
+# =============================================================================
+# Configuration Topics
+# =============================================================================
+
+  config.changes:
+    description: "Configuration change events"
+    partitions: 6
+    retention_ms: 2592000000  # 30 days
+    cleanup_policy: compact
+    partition_key: org_id
+    producers:
+      - config-service
+    consumers:
+      - etl-service
+      - rule-engine
+      - query-service
+
+  config.pipeline.status:
+    description: "Pipeline status updates"
+    partitions: 6
+    retention_ms: 604800000  # 7 days
+    partition_key: pipeline_id
+    producers:
+      - etl-service
+    consumers:
+      - query-service
+      - analytics-service
+
+# =============================================================================
+# ETL Topics
+# =============================================================================
+
+  etl.execution.started:
+    description: "ETL execution started events"
+    partitions: 6
+    retention_ms: 604800000  # 7 days
+    partition_key: pipeline_id
+    producers:
+      - etl-service
+    consumers:
+      - analytics-service
+
+  etl.execution.completed:
+    description: "ETL execution completed events"
+    partitions: 6
+    retention_ms: 604800000  # 7 days
+    partition_key: pipeline_id
+    producers:
+      - etl-service
+    consumers:
+      - analytics-service
+      - notification-service
+
+  etl.execution.failed:
+    description: "ETL execution failure events"
+    partitions: 6
+    retention_ms: 2592000000  # 30 days
+    partition_key: pipeline_id
+    producers:
+      - etl-service
+    consumers:
+      - analytics-service
+      - notification-service
+
+# =============================================================================
+# Audit Topics
+# =============================================================================
+
+  audit.events:
+    description: "Audit trail for all user and system actions"
+    partitions: 6
+    retention_ms: 7776000000  # 90 days
+    partition_key: org_id
+    producers:
+      - auth-service
+      - config-service
+      - connector-service
+      - etl-service
+      - rule-engine
+      - notification-service
+    consumers:
+      - audit-writer  # Writes to long-term storage
+    security:
+      acl_required: true
+      encryption: true
+
+# =============================================================================
+# Dead Letter Queues
+# =============================================================================
+
+  connector.data.raw.dlq:
+    description: "DLQ for connector.data.raw"
+    partitions: 3
+    retention_ms: 1209600000  # 14 days
+    cleanup_policy: delete
+    
+  bronze.data.cleaned.dlq:
+    description: "DLQ for bronze.data.cleaned"
+    partitions: 3
+    retention_ms: 1209600000  # 14 days
+    
+  silver.data.processed.dlq:
+    description: "DLQ for silver.data.processed"
+    partitions: 3
+    retention_ms: 1209600000  # 14 days
+
+# =============================================================================
+# Consumer Groups
+# =============================================================================
+
+consumer_groups:
+  bronze-processor:
+    topics:
+      - connector.data.raw
+    max_poll_records: 100
+    max_poll_interval_ms: 300000
+    session_timeout_ms: 30000
+    
+  silver-processor:
+    topics:
+      - bronze.data.cleaned
+    max_poll_records: 100
+    max_poll_interval_ms: 300000
+    
+  gold-processor:
+    topics:
+      - silver.data.processed
+    max_poll_records: 100
+    max_poll_interval_ms: 300000
+    
+  rule-evaluator:
+    topics:
+      - gold.data.ready
+    max_poll_records: 50
+    max_poll_interval_ms: 60000
+    
+  notification-sender:
+    topics:
+      - rules.alerts.triggered
+    max_poll_records: 50
+    max_poll_interval_ms: 30000
+    
+  audit-writer:
+    topics:
+      - audit.events
+    max_poll_records: 500
+    max_poll_interval_ms: 60000

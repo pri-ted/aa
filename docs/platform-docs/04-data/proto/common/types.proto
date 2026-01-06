@@ -1,0 +1,213 @@
+// common/types.proto
+// Common field types and enumerations used across services
+syntax = "proto3";
+package platform.common;
+
+option go_package = "github.com/org/platform/gen/go/common";
+
+import "google/protobuf/timestamp.proto";
+
+// -----------------------------------------------------------------------------
+// Date/Time Types
+// -----------------------------------------------------------------------------
+
+// DateRange represents a date range (inclusive)
+message DateRange {
+  // Start date in YYYY-MM-DD format
+  string start = 1;
+  
+  // End date in YYYY-MM-DD format
+  string end = 2;
+}
+
+// TimeRange represents a timestamp range (inclusive)
+message TimeRange {
+  google.protobuf.Timestamp start = 1;
+  google.protobuf.Timestamp end = 2;
+}
+
+// -----------------------------------------------------------------------------
+// DSP Types
+// -----------------------------------------------------------------------------
+
+// DSPType enumeration for supported DSPs
+enum DSPType {
+  DSP_TYPE_UNSPECIFIED = 0;
+  DSP_TYPE_DV360 = 1;
+  DSP_TYPE_TTD = 2;
+  DSP_TYPE_META = 3;
+  DSP_TYPE_GOOGLE_ADS = 4;
+}
+
+// ConnectorType enumeration for all connector types
+enum ConnectorType {
+  CONNECTOR_TYPE_UNSPECIFIED = 0;
+  CONNECTOR_TYPE_DV360 = 1;
+  CONNECTOR_TYPE_TTD = 2;
+  CONNECTOR_TYPE_META = 3;
+  CONNECTOR_TYPE_GOOGLE_ADS = 4;
+  CONNECTOR_TYPE_GOOGLE_SHEETS = 10;
+  CONNECTOR_TYPE_SALESFORCE = 11;
+  CONNECTOR_TYPE_BOOKING_DB = 12;
+}
+
+// -----------------------------------------------------------------------------
+// Entity Types
+// -----------------------------------------------------------------------------
+
+// EntityType enumeration for permission and audit purposes
+enum EntityType {
+  ENTITY_TYPE_UNSPECIFIED = 0;
+  ENTITY_TYPE_ORGANIZATION = 1;
+  ENTITY_TYPE_USER = 2;
+  ENTITY_TYPE_DSP_ACCOUNT = 3;
+  ENTITY_TYPE_CAMPAIGN = 4;
+  ENTITY_TYPE_INSERTION_ORDER = 5;
+  ENTITY_TYPE_LINE_ITEM = 6;
+  ENTITY_TYPE_CREATIVE = 7;
+  ENTITY_TYPE_PIPELINE = 10;
+  ENTITY_TYPE_RULE = 11;
+  ENTITY_TYPE_ALERT = 12;
+  ENTITY_TYPE_DEAL = 13;
+}
+
+// EntityReference is a lightweight reference to any entity
+message EntityReference {
+  EntityType type = 1;
+  string id = 2;
+  string name = 3;
+}
+
+// -----------------------------------------------------------------------------
+// Status Types
+// -----------------------------------------------------------------------------
+
+// GenericStatus for entities with simple active/inactive states
+enum GenericStatus {
+  GENERIC_STATUS_UNSPECIFIED = 0;
+  GENERIC_STATUS_ACTIVE = 1;
+  GENERIC_STATUS_INACTIVE = 2;
+  GENERIC_STATUS_DELETED = 3;
+}
+
+// PipelineStatus for pipeline execution states
+enum PipelineStatus {
+  PIPELINE_STATUS_UNSPECIFIED = 0;
+  PIPELINE_STATUS_ACTIVE = 1;
+  PIPELINE_STATUS_PAUSED = 2;
+  PIPELINE_STATUS_FAILED = 3;
+  PIPELINE_STATUS_DISABLED = 4;
+}
+
+// ExecutionStatus for job/workflow execution states
+enum ExecutionStatus {
+  EXECUTION_STATUS_UNSPECIFIED = 0;
+  EXECUTION_STATUS_PENDING = 1;
+  EXECUTION_STATUS_RUNNING = 2;
+  EXECUTION_STATUS_COMPLETED = 3;
+  EXECUTION_STATUS_FAILED = 4;
+  EXECUTION_STATUS_CANCELLED = 5;
+  EXECUTION_STATUS_TIMEOUT = 6;
+}
+
+// CampaignStatus for DSP campaign states
+enum CampaignStatus {
+  CAMPAIGN_STATUS_UNSPECIFIED = 0;
+  CAMPAIGN_STATUS_DRAFT = 1;
+  CAMPAIGN_STATUS_ACTIVE = 2;
+  CAMPAIGN_STATUS_PAUSED = 3;
+  CAMPAIGN_STATUS_COMPLETED = 4;
+  CAMPAIGN_STATUS_ARCHIVED = 5;
+}
+
+// PacingStatus for campaign pacing states
+enum PacingStatus {
+  PACING_STATUS_UNSPECIFIED = 0;
+  PACING_STATUS_ON_TRACK = 1;
+  PACING_STATUS_UNDER_PACING = 2;
+  PACING_STATUS_OVER_PACING = 3;
+  PACING_STATUS_CRITICAL_UNDER = 4;
+  PACING_STATUS_CRITICAL_OVER = 5;
+}
+
+// AlertSeverity for alert/notification severity
+enum AlertSeverity {
+  ALERT_SEVERITY_UNSPECIFIED = 0;
+  ALERT_SEVERITY_INFO = 1;
+  ALERT_SEVERITY_WARNING = 2;
+  ALERT_SEVERITY_CRITICAL = 3;
+}
+
+// -----------------------------------------------------------------------------
+// Money Types
+// -----------------------------------------------------------------------------
+
+// Money represents a monetary amount with currency
+message Money {
+  // Amount in the smallest currency unit (e.g., cents for USD)
+  int64 amount_micros = 1;
+  
+  // ISO 4217 currency code (e.g., "USD", "EUR")
+  string currency = 2;
+}
+
+// MoneyDecimal represents a monetary amount as a decimal string
+// Used when precision is critical
+message MoneyDecimal {
+  // Amount as decimal string (e.g., "1234.56")
+  string amount = 1;
+  
+  // ISO 4217 currency code
+  string currency = 2;
+}
+
+// -----------------------------------------------------------------------------
+// Module Types
+// -----------------------------------------------------------------------------
+
+// ModuleType enumeration for platform modules
+enum ModuleType {
+  MODULE_TYPE_UNSPECIFIED = 0;
+  MODULE_TYPE_PACING = 1;
+  MODULE_TYPE_MARGIN = 2;
+  MODULE_TYPE_ALERTS = 3;
+  MODULE_TYPE_QA = 4;
+  MODULE_TYPE_TAXONOMY = 5;
+  MODULE_TYPE_CAMPAIGN_MANAGEMENT = 6;
+}
+
+// -----------------------------------------------------------------------------
+// Audit Types
+// -----------------------------------------------------------------------------
+
+// AuditContext provides context for audit logging
+message AuditContext {
+  // User who performed the action
+  int64 user_id = 1;
+  
+  // Organization context
+  int64 org_id = 2;
+  
+  // Client IP address
+  string ip_address = 3;
+  
+  // User agent string
+  string user_agent = 4;
+  
+  // Request ID for tracing
+  string request_id = 5;
+}
+
+// AuditAction enumeration for audit log actions
+enum AuditAction {
+  AUDIT_ACTION_UNSPECIFIED = 0;
+  AUDIT_ACTION_CREATE = 1;
+  AUDIT_ACTION_READ = 2;
+  AUDIT_ACTION_UPDATE = 3;
+  AUDIT_ACTION_DELETE = 4;
+  AUDIT_ACTION_LOGIN = 5;
+  AUDIT_ACTION_LOGOUT = 6;
+  AUDIT_ACTION_PERMISSION_GRANT = 7;
+  AUDIT_ACTION_PERMISSION_REVOKE = 8;
+  AUDIT_ACTION_EXECUTE = 9;
+}

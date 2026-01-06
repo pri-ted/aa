@@ -1,0 +1,130 @@
+{
+  "type": "record",
+  "name": "BronzeDataCleaned",
+  "namespace": "platform.events.bronze",
+  "doc": "Event published when Bronze layer completes processing raw data",
+  "fields": [
+    {
+      "name": "metadata",
+      "type": "platform.events.common.EventMetadata",
+      "doc": "Standard event metadata"
+    },
+    {
+      "name": "source_event_id",
+      "type": "string",
+      "doc": "ID of the connector.data.raw event that triggered this processing"
+    },
+    {
+      "name": "pipeline_id",
+      "type": "string",
+      "doc": "Pipeline being executed"
+    },
+    {
+      "name": "execution_id",
+      "type": "string",
+      "doc": "ETL execution ID"
+    },
+    {
+      "name": "connector_type",
+      "type": "platform.events.connector.ConnectorType",
+      "doc": "Type of source connector"
+    },
+    {
+      "name": "iceberg_table",
+      "type": "string",
+      "doc": "Iceberg table where data was written (e.g., 'bronze.dv360_reports')"
+    },
+    {
+      "name": "partition",
+      "type": "string",
+      "doc": "Partition written to (e.g., 'org_id=456/ingestion_date=2024-12-26')"
+    },
+    {
+      "name": "snapshot_id",
+      "type": "long",
+      "doc": "Iceberg snapshot ID for this write"
+    },
+    {
+      "name": "record_counts",
+      "type": {
+        "type": "record",
+        "name": "RecordCounts",
+        "fields": [
+          {"name": "input_records", "type": "long", "doc": "Records received from source"},
+          {"name": "valid_records", "type": "long", "doc": "Records that passed validation"},
+          {"name": "deduplicated", "type": "long", "doc": "Duplicate records removed"},
+          {"name": "output_records", "type": "long", "doc": "Records written to Bronze"}
+        ]
+      },
+      "doc": "Record processing statistics"
+    },
+    {
+      "name": "size_bytes",
+      "type": "long",
+      "doc": "Size of data written (bytes)"
+    },
+    {
+      "name": "quality_metrics",
+      "type": {
+        "type": "record",
+        "name": "BronzeQualityMetrics",
+        "fields": [
+          {
+            "name": "schema_valid_count",
+            "type": "long",
+            "doc": "Records with valid schema structure"
+          },
+          {
+            "name": "schema_invalid_count",
+            "type": "long",
+            "doc": "Records with invalid schema"
+          },
+          {
+            "name": "null_field_counts",
+            "type": {"type": "map", "values": "long"},
+            "doc": "Count of null values per field"
+          },
+          {
+            "name": "freshness_check_passed",
+            "type": "boolean",
+            "doc": "Whether data freshness is within expected range"
+          },
+          {
+            "name": "completeness_score",
+            "type": "double",
+            "doc": "Percentage of non-null required fields (0.0-1.0)"
+          }
+        ]
+      },
+      "doc": "Data quality metrics"
+    },
+    {
+      "name": "processing_time_ms",
+      "type": "long",
+      "doc": "Total processing time (milliseconds)"
+    },
+    {
+      "name": "date_range",
+      "type": "platform.events.connector.DateRange",
+      "doc": "Date range of the processed data"
+    },
+    {
+      "name": "issues",
+      "type": {
+        "type": "array",
+        "items": {
+          "type": "record",
+          "name": "ProcessingIssue",
+          "fields": [
+            {"name": "type", "type": "string", "doc": "Issue type (e.g., 'missing_field', 'invalid_type')"},
+            {"name": "field", "type": ["null", "string"], "default": null, "doc": "Affected field"},
+            {"name": "count", "type": "long", "doc": "Number of records affected"},
+            {"name": "severity", "type": {"type": "enum", "name": "IssueSeverity", "symbols": ["INFO", "WARNING", "ERROR"]}}
+          ]
+        }
+      },
+      "default": [],
+      "doc": "Issues encountered during processing"
+    }
+  ]
+}

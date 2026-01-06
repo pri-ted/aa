@@ -1,0 +1,167 @@
+{
+  "type": "record",
+  "name": "AlertTriggered",
+  "namespace": "platform.events.rules",
+  "doc": "Event published when a rule triggers an alert",
+  "fields": [
+    {
+      "name": "metadata",
+      "type": "platform.events.common.EventMetadata",
+      "doc": "Standard event metadata"
+    },
+    {
+      "name": "alert_id",
+      "type": "string",
+      "doc": "Unique alert instance ID"
+    },
+    {
+      "name": "rule_id",
+      "type": "string",
+      "doc": "Rule that triggered this alert"
+    },
+    {
+      "name": "rule_name",
+      "type": "string",
+      "doc": "Rule name for display"
+    },
+    {
+      "name": "module",
+      "type": {
+        "type": "enum",
+        "name": "ModuleType",
+        "symbols": ["PACING", "MARGIN", "ALERTS", "QA", "TAXONOMY"]
+      },
+      "doc": "Module the rule belongs to"
+    },
+    {
+      "name": "severity",
+      "type": {
+        "type": "enum",
+        "name": "AlertSeverity",
+        "symbols": ["INFO", "WARNING", "CRITICAL"]
+      },
+      "doc": "Alert severity"
+    },
+    {
+      "name": "entity",
+      "type": {
+        "type": "record",
+        "name": "EntityReference",
+        "fields": [
+          {"name": "type", "type": "string", "doc": "Entity type (campaign, deal, etc.)"},
+          {"name": "id", "type": "string", "doc": "Entity ID"},
+          {"name": "name", "type": "string", "doc": "Entity name"},
+          {"name": "url", "type": ["null", "string"], "default": null, "doc": "URL to entity in platform"}
+        ]
+      },
+      "doc": "Entity that triggered the alert"
+    },
+    {
+      "name": "parent_entities",
+      "type": {
+        "type": "array",
+        "items": "EntityReference"
+      },
+      "default": [],
+      "doc": "Parent entities (e.g., campaign for a line item alert)"
+    },
+    {
+      "name": "condition_results",
+      "type": {
+        "type": "array",
+        "items": {
+          "type": "record",
+          "name": "ConditionResult",
+          "fields": [
+            {"name": "condition", "type": "string", "doc": "Condition expression"},
+            {"name": "field", "type": "string", "doc": "Field evaluated"},
+            {"name": "operator", "type": "string", "doc": "Operator used"},
+            {"name": "expected", "type": "string", "doc": "Expected value"},
+            {"name": "actual", "type": "string", "doc": "Actual value"},
+            {"name": "matched", "type": "boolean", "doc": "Whether condition matched"}
+          ]
+        }
+      },
+      "doc": "Individual condition results"
+    },
+    {
+      "name": "message",
+      "type": "string",
+      "doc": "Human-readable alert message"
+    },
+    {
+      "name": "data_snapshot",
+      "type": {"type": "map", "values": "string"},
+      "doc": "Snapshot of relevant data at alert time"
+    },
+    {
+      "name": "actions_requested",
+      "type": {
+        "type": "array",
+        "items": {
+          "type": "record",
+          "name": "RequestedAction",
+          "fields": [
+            {"name": "action_type", "type": "string", "doc": "Action type (alert, webhook, tag, etc.)"},
+            {"name": "config", "type": {"type": "map", "values": "string"}, "doc": "Action configuration"}
+          ]
+        }
+      },
+      "doc": "Actions requested by the rule"
+    },
+    {
+      "name": "notification_channels",
+      "type": {
+        "type": "array",
+        "items": {
+          "type": "enum",
+          "name": "NotificationChannel",
+          "symbols": ["EMAIL", "SLACK", "WEBHOOK", "SMS", "IN_APP"]
+        }
+      },
+      "doc": "Channels to send notifications through"
+    },
+    {
+      "name": "recipients",
+      "type": {
+        "type": "record",
+        "name": "AlertRecipients",
+        "fields": [
+          {"name": "user_ids", "type": {"type": "array", "items": "int"}, "default": []},
+          {"name": "emails", "type": {"type": "array", "items": "string"}, "default": []},
+          {"name": "slack_channels", "type": {"type": "array", "items": "string"}, "default": []},
+          {"name": "webhook_urls", "type": {"type": "array", "items": "string"}, "default": []},
+          {"name": "roles", "type": {"type": "array", "items": "string"}, "default": []}
+        ]
+      },
+      "doc": "Alert recipients"
+    },
+    {
+      "name": "suppression_info",
+      "type": ["null", {
+        "type": "record",
+        "name": "SuppressionInfo",
+        "fields": [
+          {"name": "cooldown_until", "type": "long", "logicalType": "timestamp-millis", "doc": "Don't re-alert until this time"},
+          {"name": "previous_alert_id", "type": ["null", "string"], "default": null, "doc": "ID of previous alert for this entity/rule"},
+          {"name": "alert_count", "type": "int", "default": 1, "doc": "Number of times this alert has fired"}
+        ]
+      }],
+      "default": null,
+      "doc": "Alert suppression/cooldown info"
+    },
+    {
+      "name": "evaluation_context",
+      "type": {
+        "type": "record",
+        "name": "EvaluationContext",
+        "fields": [
+          {"name": "evaluation_id", "type": "string", "doc": "Evaluation run ID"},
+          {"name": "data_freshness", "type": "long", "logicalType": "timestamp-millis", "doc": "Freshness of data evaluated"},
+          {"name": "evaluation_time_us", "type": "long", "doc": "Rule evaluation time (microseconds)"}
+        ]
+      },
+      "doc": "Context about the evaluation run"
+    }
+  ]
+}

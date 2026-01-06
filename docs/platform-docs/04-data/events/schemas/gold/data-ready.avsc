@@ -1,0 +1,133 @@
+{
+  "type": "record",
+  "name": "GoldDataReady",
+  "namespace": "platform.events.gold",
+  "doc": "Event published when Gold layer completes aggregation and data is ready for consumption",
+  "fields": [
+    {
+      "name": "metadata",
+      "type": "platform.events.common.EventMetadata",
+      "doc": "Standard event metadata"
+    },
+    {
+      "name": "source_event_id",
+      "type": "string",
+      "doc": "ID of the silver.data.processed event that triggered this processing"
+    },
+    {
+      "name": "pipeline_id",
+      "type": "string",
+      "doc": "Pipeline being executed"
+    },
+    {
+      "name": "execution_id",
+      "type": "string",
+      "doc": "ETL execution ID"
+    },
+    {
+      "name": "tables_updated",
+      "type": {
+        "type": "array",
+        "items": {
+          "type": "record",
+          "name": "ClickHouseTableUpdate",
+          "fields": [
+            {"name": "table_name", "type": "string", "doc": "ClickHouse table name"},
+            {"name": "database", "type": "string", "default": "gold", "doc": "ClickHouse database"},
+            {"name": "partition", "type": "string", "doc": "Partition updated"},
+            {"name": "rows_inserted", "type": "long", "doc": "Rows inserted"},
+            {"name": "rows_updated", "type": "long", "doc": "Rows updated (via ReplacingMergeTree)"}
+          ]
+        }
+      },
+      "doc": "ClickHouse tables updated"
+    },
+    {
+      "name": "materialized_views_refreshed",
+      "type": {"type": "array", "items": "string"},
+      "doc": "Materialized views that were refreshed"
+    },
+    {
+      "name": "metrics_computed",
+      "type": {
+        "type": "array",
+        "items": {
+          "type": "record",
+          "name": "ComputedMetric",
+          "fields": [
+            {"name": "metric_name", "type": "string", "doc": "Metric name (e.g., 'pacing_rate')"},
+            {"name": "entity_type", "type": "string", "doc": "Entity type (campaign, deal, etc.)"},
+            {"name": "entities_computed", "type": "long", "doc": "Number of entities computed"},
+            {"name": "computation_time_ms", "type": "long", "doc": "Time to compute this metric"}
+          ]
+        }
+      },
+      "doc": "Business metrics computed during this run"
+    },
+    {
+      "name": "joins_performed",
+      "type": {
+        "type": "array",
+        "items": {
+          "type": "record",
+          "name": "JoinInfo",
+          "fields": [
+            {"name": "source_tables", "type": {"type": "array", "items": "string"}},
+            {"name": "join_type", "type": "string", "doc": "left, inner, full"},
+            {"name": "records_matched", "type": "long"},
+            {"name": "records_unmatched", "type": "long"}
+          ]
+        }
+      },
+      "default": [],
+      "doc": "Data joins performed (e.g., campaign + booking)"
+    },
+    {
+      "name": "record_counts",
+      "type": {
+        "type": "record",
+        "name": "GoldRecordCounts",
+        "fields": [
+          {"name": "input_records", "type": "long", "doc": "Records read from Silver"},
+          {"name": "aggregated_records", "type": "long", "doc": "Records after aggregation"},
+          {"name": "output_records", "type": "long", "doc": "Records written to Gold"}
+        ]
+      },
+      "doc": "Record processing statistics"
+    },
+    {
+      "name": "data_freshness",
+      "type": "long",
+      "logicalType": "timestamp-millis",
+      "doc": "Timestamp of most recent data now available in Gold"
+    },
+    {
+      "name": "date_range",
+      "type": "platform.events.connector.DateRange",
+      "doc": "Date range of the processed data"
+    },
+    {
+      "name": "processing_time_ms",
+      "type": "long",
+      "doc": "Total processing time (milliseconds)"
+    },
+    {
+      "name": "ready_for",
+      "type": {
+        "type": "array",
+        "items": {
+          "type": "enum",
+          "name": "DataConsumer",
+          "symbols": ["DASHBOARDS", "ALERTS", "RULES", "REPORTS", "API"]
+        }
+      },
+      "doc": "What this data is ready to be consumed by"
+    },
+    {
+      "name": "alerts_to_evaluate",
+      "type": "boolean",
+      "default": true,
+      "doc": "Whether rule engine should evaluate this data"
+    }
+  ]
+}

@@ -1,0 +1,429 @@
+// notification/v1/notification.proto
+// Notification Service - Multi-channel alerting and notification delivery
+syntax = "proto3";
+package platform.notification.v1;
+
+option go_package = "github.com/org/platform/gen/go/notification/v1";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/struct.proto";
+import "common/errors.proto";
+import "common/pagination.proto";
+import "common/types.proto";
+
+// =============================================================================
+// Notification Service Definition
+// =============================================================================
+
+service NotificationService {
+  // ---------------------------------------------------------------------------
+  // Sending Notifications
+  // ---------------------------------------------------------------------------
+  
+  // SendNotification sends a notification through configured channels
+  rpc SendNotification(SendNotificationRequest) returns (SendNotificationResponse);
+  
+  // SendBatchNotifications sends multiple notifications
+  rpc SendBatchNotifications(SendBatchNotificationsRequest) returns (SendBatchNotificationsResponse);
+  
+  // ---------------------------------------------------------------------------
+  // Notification Status
+  // ---------------------------------------------------------------------------
+  
+  // GetNotificationStatus returns delivery status
+  rpc GetNotificationStatus(GetNotificationStatusRequest) returns (GetNotificationStatusResponse);
+  
+  // ListNotifications returns notification history
+  rpc ListNotifications(ListNotificationsRequest) returns (ListNotificationsResponse);
+  
+  // ---------------------------------------------------------------------------
+  // Preference Management
+  // ---------------------------------------------------------------------------
+  
+  // GetPreferences returns user notification preferences
+  rpc GetPreferences(GetPreferencesRequest) returns (GetPreferencesResponse);
+  
+  // UpdatePreferences updates notification preferences
+  rpc UpdatePreferences(UpdatePreferencesRequest) returns (UpdatePreferencesResponse);
+  
+  // ---------------------------------------------------------------------------
+  // Template Management
+  // ---------------------------------------------------------------------------
+  
+  // ListTemplates returns available notification templates
+  rpc ListTemplates(ListTemplatesRequest) returns (ListTemplatesResponse);
+  
+  // RenderTemplate renders a template with data (for preview)
+  rpc RenderTemplate(RenderTemplateRequest) returns (RenderTemplateResponse);
+  
+  // ---------------------------------------------------------------------------
+  // Channel Management
+  // ---------------------------------------------------------------------------
+  
+  // GetChannelStatus returns status of notification channels
+  rpc GetChannelStatus(GetChannelStatusRequest) returns (GetChannelStatusResponse);
+  
+  // TestChannel sends a test notification to verify channel config
+  rpc TestChannel(TestChannelRequest) returns (TestChannelResponse);
+}
+
+// =============================================================================
+// Sending Messages
+// =============================================================================
+
+message SendNotificationRequest {
+  // Notification type
+  NotificationType type = 1;
+  
+  // Severity level
+  platform.common.AlertSeverity severity = 2;
+  
+  // Channels to send through
+  repeated Channel channels = 3;
+  
+  // Recipients
+  NotificationRecipients recipients = 4;
+  
+  // Template to use
+  string template_id = 5;
+  
+  // Template data
+  google.protobuf.Struct data = 6;
+  
+  // Organization context
+  int64 org_id = 7;
+  
+  // Optional: related entity
+  optional platform.common.EntityReference entity = 8;
+  
+  // Optional: rule that triggered this notification
+  optional string rule_id = 9;
+  
+  // Optional: custom subject (overrides template)
+  optional string subject_override = 10;
+  
+  // Idempotency key
+  optional string idempotency_key = 11;
+}
+
+enum NotificationType {
+  NOTIFICATION_TYPE_UNSPECIFIED = 0;
+  NOTIFICATION_TYPE_ALERT = 1;
+  NOTIFICATION_TYPE_DIGEST = 2;
+  NOTIFICATION_TYPE_SYSTEM = 3;
+  NOTIFICATION_TYPE_TRANSACTIONAL = 4;
+}
+
+enum Channel {
+  CHANNEL_UNSPECIFIED = 0;
+  CHANNEL_EMAIL = 1;
+  CHANNEL_SLACK = 2;
+  CHANNEL_WEBHOOK = 3;
+  CHANNEL_SMS = 4;
+  CHANNEL_PUSH = 5;
+  CHANNEL_IN_APP = 6;
+}
+
+message NotificationRecipients {
+  // User IDs to notify
+  repeated int64 user_ids = 1;
+  
+  // External email addresses
+  repeated string emails = 2;
+  
+  // Slack channels/users
+  repeated string slack_targets = 3;
+  
+  // Webhook URLs
+  repeated string webhook_urls = 4;
+  
+  // Notify by role
+  repeated string roles = 5;  // "admin", "campaign_owner", etc.
+}
+
+message SendNotificationResponse {
+  // Notification ID
+  string notification_id = 1;
+  
+  // Status per channel
+  repeated ChannelDeliveryStatus channel_status = 2;
+  
+  platform.common.Error error = 3;
+}
+
+message ChannelDeliveryStatus {
+  Channel channel = 1;
+  DeliveryStatus status = 2;
+  int32 recipient_count = 3;
+  optional string error = 4;
+}
+
+enum DeliveryStatus {
+  DELIVERY_STATUS_UNSPECIFIED = 0;
+  DELIVERY_STATUS_QUEUED = 1;
+  DELIVERY_STATUS_SENDING = 2;
+  DELIVERY_STATUS_SENT = 3;
+  DELIVERY_STATUS_DELIVERED = 4;
+  DELIVERY_STATUS_FAILED = 5;
+  DELIVERY_STATUS_BOUNCED = 6;
+  DELIVERY_STATUS_SKIPPED = 7;
+}
+
+message SendBatchNotificationsRequest {
+  repeated SendNotificationRequest notifications = 1;
+}
+
+message SendBatchNotificationsResponse {
+  repeated SendNotificationResponse results = 1;
+  
+  // Summary
+  int32 total = 2;
+  int32 queued = 3;
+  int32 failed = 4;
+}
+
+// =============================================================================
+// Status Messages
+// =============================================================================
+
+message GetNotificationStatusRequest {
+  string notification_id = 1;
+}
+
+message GetNotificationStatusResponse {
+  string notification_id = 1;
+  
+  // Overall status
+  DeliveryStatus status = 2;
+  
+  // Per-channel status
+  repeated ChannelDeliveryDetail channel_details = 3;
+  
+  // Timestamps
+  google.protobuf.Timestamp created_at = 4;
+  optional google.protobuf.Timestamp sent_at = 5;
+  optional google.protobuf.Timestamp delivered_at = 6;
+  
+  platform.common.Error error = 7;
+}
+
+message ChannelDeliveryDetail {
+  Channel channel = 1;
+  DeliveryStatus status = 2;
+  
+  // Per-recipient status
+  repeated RecipientStatus recipients = 3;
+  
+  // Retry count
+  int32 retry_count = 4;
+  
+  // Last error
+  optional string last_error = 5;
+  
+  // Timestamps
+  optional google.protobuf.Timestamp sent_at = 6;
+  optional google.protobuf.Timestamp delivered_at = 7;
+}
+
+message RecipientStatus {
+  string recipient = 1;  // email, user_id, etc.
+  DeliveryStatus status = 2;
+  optional string error = 3;
+}
+
+message ListNotificationsRequest {
+  int64 org_id = 1;
+  
+  // Optional filters
+  optional NotificationType type = 2;
+  optional platform.common.AlertSeverity severity = 3;
+  optional DeliveryStatus status = 4;
+  optional platform.common.DateRange date_range = 5;
+  optional int64 user_id = 6;
+  
+  platform.common.PaginationRequest pagination = 7;
+}
+
+message ListNotificationsResponse {
+  repeated NotificationSummary notifications = 1;
+  platform.common.PaginationResponse pagination = 2;
+}
+
+message NotificationSummary {
+  string id = 1;
+  NotificationType type = 2;
+  platform.common.AlertSeverity severity = 3;
+  string subject = 4;
+  DeliveryStatus status = 5;
+  repeated Channel channels = 6;
+  int32 recipient_count = 7;
+  google.protobuf.Timestamp created_at = 8;
+  optional platform.common.EntityReference entity = 9;
+}
+
+// =============================================================================
+// Preference Messages
+// =============================================================================
+
+message GetPreferencesRequest {
+  int64 user_id = 1;
+  int64 org_id = 2;
+}
+
+message GetPreferencesResponse {
+  NotificationPreferences preferences = 1;
+  platform.common.Error error = 2;
+}
+
+message NotificationPreferences {
+  // Channel preferences
+  map<string, bool> channels_enabled = 1;  // "email" -> true
+  
+  // Frequency preferences per severity
+  map<string, DeliveryFrequency> frequency_by_severity = 2;
+  
+  // Quiet hours
+  QuietHours quiet_hours = 3;
+  
+  // Module-specific preferences
+  map<string, bool> modules_enabled = 4;  // "pacing" -> true
+  
+  // Email preferences
+  EmailPreferences email = 5;
+  
+  // Slack preferences
+  SlackPreferences slack = 6;
+}
+
+enum DeliveryFrequency {
+  DELIVERY_FREQUENCY_UNSPECIFIED = 0;
+  DELIVERY_FREQUENCY_IMMEDIATE = 1;
+  DELIVERY_FREQUENCY_HOURLY_DIGEST = 2;
+  DELIVERY_FREQUENCY_DAILY_DIGEST = 3;
+  DELIVERY_FREQUENCY_WEEKLY_DIGEST = 4;
+  DELIVERY_FREQUENCY_DISABLED = 5;
+}
+
+message QuietHours {
+  bool enabled = 1;
+  string start_time = 2;  // "22:00"
+  string end_time = 3;    // "08:00"
+  string timezone = 4;
+  repeated string days = 5;  // ["saturday", "sunday"]
+  
+  // Allow critical alerts during quiet hours
+  bool allow_critical = 6;
+}
+
+message EmailPreferences {
+  // Preferred email (if different from account email)
+  optional string preferred_email = 1;
+  
+  // HTML or plain text
+  bool prefer_html = 2;
+  
+  // Include entity links
+  bool include_links = 3;
+}
+
+message SlackPreferences {
+  // Direct message vs channel
+  bool prefer_dm = 1;
+  
+  // Default channel
+  optional string default_channel = 2;
+  
+  // Include @mention
+  bool mention_on_critical = 3;
+}
+
+message UpdatePreferencesRequest {
+  int64 user_id = 1;
+  int64 org_id = 2;
+  NotificationPreferences preferences = 3;
+}
+
+message UpdatePreferencesResponse {
+  NotificationPreferences preferences = 1;
+  platform.common.Error error = 2;
+}
+
+// =============================================================================
+// Template Messages
+// =============================================================================
+
+message ListTemplatesRequest {
+  // Optional: filter by type
+  optional NotificationType type = 1;
+  
+  // Optional: filter by channel
+  optional Channel channel = 2;
+}
+
+message ListTemplatesResponse {
+  repeated NotificationTemplate templates = 1;
+}
+
+message NotificationTemplate {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  NotificationType type = 4;
+  repeated Channel supported_channels = 5;
+  repeated string required_fields = 6;
+}
+
+message RenderTemplateRequest {
+  string template_id = 1;
+  Channel channel = 2;
+  google.protobuf.Struct data = 3;
+}
+
+message RenderTemplateResponse {
+  // Rendered subject
+  string subject = 1;
+  
+  // Rendered body
+  string body = 2;
+  
+  // For HTML email: plain text alternative
+  optional string body_plain = 3;
+  
+  platform.common.Error error = 4;
+}
+
+// =============================================================================
+// Channel Messages
+// =============================================================================
+
+message GetChannelStatusRequest {
+  int64 org_id = 1;
+}
+
+message GetChannelStatusResponse {
+  repeated ChannelStatus channels = 1;
+}
+
+message ChannelStatus {
+  Channel channel = 1;
+  bool configured = 2;
+  bool healthy = 3;
+  optional string error = 4;
+  google.protobuf.Timestamp last_used = 5;
+  int64 messages_sent_24h = 6;
+  double delivery_rate = 7;  // 0.0 - 1.0
+}
+
+message TestChannelRequest {
+  int64 org_id = 1;
+  Channel channel = 2;
+  
+  // Test recipient
+  string recipient = 3;
+}
+
+message TestChannelResponse {
+  bool success = 1;
+  string message = 2;
+  platform.common.Error error = 3;
+}

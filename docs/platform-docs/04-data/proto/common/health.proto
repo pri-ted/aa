@@ -1,0 +1,85 @@
+// common/health.proto
+// Standard health check service implemented by all services
+syntax = "proto3";
+package platform.common;
+
+option go_package = "github.com/org/platform/gen/go/common";
+
+// HealthService is implemented by all platform services
+// Compatible with Kubernetes health probes
+service HealthService {
+  // Check performs a health check
+  // Used by Kubernetes liveness probe
+  rpc Check(HealthCheckRequest) returns (HealthCheckResponse);
+  
+  // Watch streams health status changes
+  rpc Watch(HealthCheckRequest) returns (stream HealthCheckResponse);
+}
+
+message HealthCheckRequest {
+  // Optional service name to check specific dependency
+  string service = 1;
+}
+
+message HealthCheckResponse {
+  // Overall service status
+  ServingStatus status = 1;
+  
+  // Individual component checks
+  map<string, ComponentHealth> components = 2;
+  
+  // Service version
+  string version = 3;
+  
+  // Service uptime in seconds
+  int64 uptime_seconds = 4;
+}
+
+enum ServingStatus {
+  SERVING_STATUS_UNSPECIFIED = 0;
+  
+  // Service is healthy and serving requests
+  SERVING_STATUS_SERVING = 1;
+  
+  // Service is not serving requests
+  SERVING_STATUS_NOT_SERVING = 2;
+  
+  // Service status is unknown
+  SERVING_STATUS_UNKNOWN = 3;
+}
+
+message ComponentHealth {
+  // Component status
+  ServingStatus status = 1;
+  
+  // Component name (e.g., "postgresql", "redis", "kafka")
+  string name = 2;
+  
+  // Optional message with details
+  string message = 3;
+  
+  // Last check timestamp (Unix milliseconds)
+  int64 last_check_ms = 4;
+  
+  // Response time of last check in milliseconds
+  int32 latency_ms = 5;
+}
+
+// ReadinessService for Kubernetes readiness probes
+service ReadinessService {
+  // Ready returns whether the service is ready to receive traffic
+  rpc Ready(ReadinessRequest) returns (ReadinessResponse);
+}
+
+message ReadinessRequest {}
+
+message ReadinessResponse {
+  // Whether the service is ready
+  bool ready = 1;
+  
+  // Reason if not ready
+  string reason = 2;
+  
+  // Components that are not ready
+  repeated string not_ready_components = 3;
+}

@@ -1,0 +1,365 @@
+// auth/v1/auth.proto
+// Auth Service - Authentication, authorization, and session management
+syntax = "proto3";
+package platform.auth.v1;
+
+option go_package = "github.com/org/platform/gen/go/auth/v1";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/struct.proto";
+import "common/errors.proto";
+import "common/pagination.proto";
+import "common/types.proto";
+
+// =============================================================================
+// Auth Service Definition
+// =============================================================================
+
+service AuthService {
+  // ---------------------------------------------------------------------------
+  // Token Operations (called by all services)
+  // ---------------------------------------------------------------------------
+  
+  // ValidateToken validates a JWT access token and returns claims
+  // Called by all services on every authenticated request
+  rpc ValidateToken(ValidateTokenRequest) returns (ValidateTokenResponse);
+  
+  // RefreshAccessToken exchanges a refresh token for a new access token
+  rpc RefreshAccessToken(RefreshAccessTokenRequest) returns (RefreshAccessTokenResponse);
+  
+  // ---------------------------------------------------------------------------
+  // Permission Operations (called by services for authorization)
+  // ---------------------------------------------------------------------------
+  
+  // CheckPermission checks if a user has permission on an entity
+  rpc CheckPermission(CheckPermissionRequest) returns (CheckPermissionResponse);
+  
+  // BatchCheckPermissions checks multiple permissions in one call
+  rpc BatchCheckPermissions(BatchCheckPermissionsRequest) returns (BatchCheckPermissionsResponse);
+  
+  // GetUserPermissions returns all permissions for a user in an org
+  rpc GetUserPermissions(GetUserPermissionsRequest) returns (GetUserPermissionsResponse);
+  
+  // ---------------------------------------------------------------------------
+  // User Operations (internal service-to-service)
+  // ---------------------------------------------------------------------------
+  
+  // GetUser retrieves user details by ID
+  rpc GetUser(GetUserRequest) returns (GetUserResponse);
+  
+  // GetUserByEmail retrieves user by email
+  rpc GetUserByEmail(GetUserByEmailRequest) returns (GetUserResponse);
+  
+  // ---------------------------------------------------------------------------
+  // Organization Operations (internal service-to-service)
+  // ---------------------------------------------------------------------------
+  
+  // GetOrganization retrieves organization details
+  rpc GetOrganization(GetOrganizationRequest) returns (GetOrganizationResponse);
+  
+  // GetOrganizationMembers returns all members of an organization
+  rpc GetOrganizationMembers(GetOrganizationMembersRequest) returns (GetOrganizationMembersResponse);
+  
+  // ---------------------------------------------------------------------------
+  // Session Operations (internal)
+  // ---------------------------------------------------------------------------
+  
+  // InvalidateSession invalidates a user session
+  rpc InvalidateSession(InvalidateSessionRequest) returns (InvalidateSessionResponse);
+  
+  // InvalidateAllSessions invalidates all sessions for a user
+  rpc InvalidateAllSessions(InvalidateAllSessionsRequest) returns (InvalidateAllSessionsResponse);
+}
+
+// =============================================================================
+// Token Messages
+// =============================================================================
+
+message ValidateTokenRequest {
+  // JWT access token to validate
+  string token = 1;
+}
+
+message ValidateTokenResponse {
+  // Whether the token is valid
+  bool valid = 1;
+  
+  // Token claims if valid
+  TokenClaims claims = 2;
+  
+  // Error details if invalid
+  platform.common.Error error = 3;
+}
+
+message TokenClaims {
+  // User ID
+  int64 user_id = 1;
+  
+  // Organization ID (from selected org)
+  int64 org_id = 2;
+  
+  // User's role in the organization
+  string role = 3;
+  
+  // List of permission strings
+  repeated string permissions = 4;
+  
+  // Token expiration time
+  google.protobuf.Timestamp expires_at = 5;
+  
+  // Token issued at
+  google.protobuf.Timestamp issued_at = 6;
+  
+  // Session ID for revocation
+  string session_id = 7;
+  
+  // Whether user is organization owner
+  bool is_owner = 8;
+  
+  // Whether organization is premium tier
+  bool is_premium = 9;
+}
+
+message RefreshAccessTokenRequest {
+  // Refresh token
+  string refresh_token = 1;
+  
+  // Optional: switch to different org
+  optional int64 org_id = 2;
+}
+
+message RefreshAccessTokenResponse {
+  // New access token
+  string access_token = 1;
+  
+  // Token expiration time
+  google.protobuf.Timestamp expires_at = 2;
+  
+  // Updated token claims
+  TokenClaims claims = 3;
+  
+  // Error if refresh failed
+  platform.common.Error error = 4;
+}
+
+// =============================================================================
+// Permission Messages
+// =============================================================================
+
+message CheckPermissionRequest {
+  // User ID to check
+  int64 user_id = 1;
+  
+  // Organization context
+  int64 org_id = 2;
+  
+  // Entity type (e.g., "campaign", "pipeline", "rule")
+  string entity_type = 3;
+  
+  // Entity ID
+  string entity_id = 4;
+  
+  // Permission to check (e.g., "read", "write", "execute", "delete")
+  string permission = 5;
+}
+
+message CheckPermissionResponse {
+  // Whether permission is granted
+  bool allowed = 1;
+  
+  // Reason for the decision
+  PermissionReason reason = 2;
+  
+  // Additional details
+  PermissionDetails details = 3;
+}
+
+enum PermissionReason {
+  PERMISSION_REASON_UNSPECIFIED = 0;
+  PERMISSION_REASON_EXPLICIT_GRANT = 1;
+  PERMISSION_REASON_ROLE_BASED = 2;
+  PERMISSION_REASON_INHERITED = 3;
+  PERMISSION_REASON_OWNER = 4;
+  PERMISSION_REASON_DENIED = 5;
+  PERMISSION_REASON_NO_GRANT = 6;
+}
+
+message PermissionDetails {
+  // Who granted the permission (if explicit)
+  optional int64 granted_by = 1;
+  
+  // When it was granted
+  optional google.protobuf.Timestamp granted_at = 2;
+  
+  // Parent entity if inherited
+  optional string inherited_from = 3;
+  
+  // Expiration if temporary grant
+  optional google.protobuf.Timestamp expires_at = 4;
+}
+
+message BatchCheckPermissionsRequest {
+  // User ID to check
+  int64 user_id = 1;
+  
+  // Organization context
+  int64 org_id = 2;
+  
+  // List of permission checks
+  repeated PermissionCheck checks = 3;
+}
+
+message PermissionCheck {
+  string entity_type = 1;
+  string entity_id = 2;
+  string permission = 3;
+}
+
+message BatchCheckPermissionsResponse {
+  // Results in same order as requests
+  repeated CheckPermissionResponse results = 1;
+}
+
+message GetUserPermissionsRequest {
+  int64 user_id = 1;
+  int64 org_id = 2;
+  
+  // Optional: filter by entity type
+  optional string entity_type = 3;
+}
+
+message GetUserPermissionsResponse {
+  // User's role in the organization
+  string role = 1;
+  
+  // Role-based permissions
+  repeated string role_permissions = 2;
+  
+  // Explicit entity grants
+  repeated EntityPermission entity_permissions = 3;
+}
+
+message EntityPermission {
+  string entity_type = 1;
+  string entity_id = 2;
+  repeated string permissions = 3;
+  google.protobuf.Timestamp granted_at = 4;
+  optional google.protobuf.Timestamp expires_at = 5;
+}
+
+// =============================================================================
+// User Messages
+// =============================================================================
+
+message GetUserRequest {
+  int64 user_id = 1;
+}
+
+message GetUserByEmailRequest {
+  string email = 1;
+}
+
+message GetUserResponse {
+  User user = 1;
+  platform.common.Error error = 2;
+}
+
+message User {
+  int64 id = 1;
+  string email = 2;
+  string full_name = 3;
+  bool email_verified = 4;
+  google.protobuf.Timestamp created_at = 5;
+  google.protobuf.Timestamp updated_at = 6;
+  google.protobuf.Timestamp last_login_at = 7;
+  
+  // Organizations the user belongs to
+  repeated UserOrganization organizations = 8;
+}
+
+message UserOrganization {
+  int64 org_id = 1;
+  string org_name = 2;
+  string role = 3;
+  google.protobuf.Timestamp joined_at = 4;
+}
+
+// =============================================================================
+// Organization Messages
+// =============================================================================
+
+message GetOrganizationRequest {
+  int64 org_id = 1;
+}
+
+message GetOrganizationResponse {
+  Organization organization = 1;
+  platform.common.Error error = 2;
+}
+
+message Organization {
+  int64 id = 1;
+  string name = 2;
+  string slug = 3;
+  bool is_premium = 4;
+  string timezone = 5;
+  string currency = 6;
+  repeated string enabled_modules = 7;
+  google.protobuf.Struct settings = 8;
+  google.protobuf.Timestamp created_at = 9;
+  google.protobuf.Timestamp updated_at = 10;
+  
+  // Connected DSP accounts
+  repeated ConnectedDSP connected_dsps = 11;
+}
+
+message ConnectedDSP {
+  platform.common.DSPType dsp_type = 1;
+  int32 account_count = 2;
+  google.protobuf.Timestamp last_sync = 3;
+}
+
+message GetOrganizationMembersRequest {
+  int64 org_id = 1;
+  platform.common.PaginationRequest pagination = 2;
+  
+  // Optional: filter by role
+  optional string role = 3;
+}
+
+message GetOrganizationMembersResponse {
+  repeated OrganizationMember members = 1;
+  platform.common.PaginationResponse pagination = 2;
+}
+
+message OrganizationMember {
+  int64 user_id = 1;
+  string email = 2;
+  string full_name = 3;
+  string role = 4;
+  google.protobuf.Timestamp joined_at = 5;
+  google.protobuf.Timestamp last_activity = 6;
+}
+
+// =============================================================================
+// Session Messages
+// =============================================================================
+
+message InvalidateSessionRequest {
+  string session_id = 1;
+}
+
+message InvalidateSessionResponse {
+  bool success = 1;
+}
+
+message InvalidateAllSessionsRequest {
+  int64 user_id = 1;
+  
+  // Optional: exclude current session
+  optional string except_session_id = 2;
+}
+
+message InvalidateAllSessionsResponse {
+  int32 invalidated_count = 1;
+}

@@ -1,0 +1,514 @@
+// config/v1/config.proto
+// Config Service - Pipeline configuration, templates, and rule management
+syntax = "proto3";
+package platform.config.v1;
+
+option go_package = "github.com/org/platform/gen/go/config/v1";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/struct.proto";
+import "common/errors.proto";
+import "common/pagination.proto";
+import "common/types.proto";
+
+// =============================================================================
+// Config Service Definition
+// =============================================================================
+
+service ConfigService {
+  // ---------------------------------------------------------------------------
+  // Pipeline Operations
+  // ---------------------------------------------------------------------------
+  
+  // GetPipeline retrieves a pipeline by ID
+  rpc GetPipeline(GetPipelineRequest) returns (GetPipelineResponse);
+  
+  // ListPipelines returns pipelines for an organization
+  rpc ListPipelines(ListPipelinesRequest) returns (ListPipelinesResponse);
+  
+  // CreatePipeline creates a new pipeline
+  rpc CreatePipeline(CreatePipelineRequest) returns (CreatePipelineResponse);
+  
+  // UpdatePipeline updates an existing pipeline
+  rpc UpdatePipeline(UpdatePipelineRequest) returns (UpdatePipelineResponse);
+  
+  // DeletePipeline soft-deletes a pipeline
+  rpc DeletePipeline(DeletePipelineRequest) returns (DeletePipelineResponse);
+  
+  // ValidatePipelineConfig validates configuration without saving
+  rpc ValidatePipelineConfig(ValidatePipelineConfigRequest) returns (ValidatePipelineConfigResponse);
+  
+  // ---------------------------------------------------------------------------
+  // Template Operations
+  // ---------------------------------------------------------------------------
+  
+  // ListTemplates returns available pipeline templates
+  rpc ListTemplates(ListTemplatesRequest) returns (ListTemplatesResponse);
+  
+  // GetTemplate retrieves a template by ID
+  rpc GetTemplate(GetTemplateRequest) returns (GetTemplateResponse);
+  
+  // GetSmartDefaults returns AI-suggested defaults based on similar orgs
+  rpc GetSmartDefaults(GetSmartDefaultsRequest) returns (GetSmartDefaultsResponse);
+  
+  // ---------------------------------------------------------------------------
+  // Rule Operations
+  // ---------------------------------------------------------------------------
+  
+  // GetRule retrieves a rule by ID
+  rpc GetRule(GetRuleRequest) returns (GetRuleResponse);
+  
+  // ListRules returns rules for an organization
+  rpc ListRules(ListRulesRequest) returns (ListRulesResponse);
+  
+  // CreateRule creates a new rule
+  rpc CreateRule(CreateRuleRequest) returns (CreateRuleResponse);
+  
+  // UpdateRule updates an existing rule
+  rpc UpdateRule(UpdateRuleRequest) returns (UpdateRuleResponse);
+  
+  // DeleteRule soft-deletes a rule
+  rpc DeleteRule(DeleteRuleRequest) returns (DeleteRuleResponse);
+  
+  // ToggleRule enables or disables a rule
+  rpc ToggleRule(ToggleRuleRequest) returns (ToggleRuleResponse);
+  
+  // ValidateRuleConditions validates rule conditions without saving
+  rpc ValidateRuleConditions(ValidateRuleConditionsRequest) returns (ValidateRuleConditionsResponse);
+  
+  // ---------------------------------------------------------------------------
+  // Schema Operations
+  // ---------------------------------------------------------------------------
+  
+  // GetEntitySchema returns the schema for an entity type
+  rpc GetEntitySchema(GetEntitySchemaRequest) returns (GetEntitySchemaResponse);
+  
+  // ListEntitySchemas returns all registered schemas
+  rpc ListEntitySchemas(ListEntitySchemasRequest) returns (ListEntitySchemasResponse);
+}
+
+// =============================================================================
+// Pipeline Messages
+// =============================================================================
+
+message Pipeline {
+  // Unique pipeline ID (UUID)
+  string id = 1;
+  
+  // Organization ID
+  int64 org_id = 2;
+  
+  // Pipeline name
+  string name = 3;
+  
+  // Connector type (DV360, TTD, META, etc.)
+  platform.common.ConnectorType connector_type = 4;
+  
+  // Pipeline status
+  platform.common.PipelineStatus status = 5;
+  
+  // Execution schedule
+  Schedule schedule = 6;
+  
+  // Pipeline configuration (connector-specific)
+  google.protobuf.Struct config = 7;
+  
+  // Template used to create this pipeline
+  optional string template_id = 8;
+  
+  // User who created the pipeline
+  int64 created_by = 9;
+  
+  // Timestamps
+  google.protobuf.Timestamp created_at = 10;
+  google.protobuf.Timestamp updated_at = 11;
+  google.protobuf.Timestamp last_run_at = 12;
+  google.protobuf.Timestamp next_run_at = 13;
+  
+  // Last execution summary
+  optional ExecutionSummary last_execution = 14;
+}
+
+message Schedule {
+  // Schedule type
+  ScheduleType type = 1;
+  
+  // Cron expression (if type is CRON)
+  string cron_expression = 2;
+  
+  // Interval in minutes (if type is INTERVAL)
+  int32 interval_minutes = 3;
+  
+  // Timezone for schedule
+  string timezone = 4;
+  
+  // Whether schedule is active
+  bool enabled = 5;
+}
+
+enum ScheduleType {
+  SCHEDULE_TYPE_UNSPECIFIED = 0;
+  SCHEDULE_TYPE_CRON = 1;
+  SCHEDULE_TYPE_INTERVAL = 2;
+  SCHEDULE_TYPE_MANUAL = 3;
+}
+
+message ExecutionSummary {
+  string execution_id = 1;
+  platform.common.ExecutionStatus status = 2;
+  int64 records_processed = 3;
+  int64 duration_ms = 4;
+  google.protobuf.Timestamp started_at = 5;
+  google.protobuf.Timestamp completed_at = 6;
+  optional string error_message = 7;
+}
+
+message GetPipelineRequest {
+  string id = 1;
+  int64 org_id = 2;
+}
+
+message GetPipelineResponse {
+  Pipeline pipeline = 1;
+  platform.common.Error error = 2;
+}
+
+message ListPipelinesRequest {
+  int64 org_id = 1;
+  
+  // Optional filters
+  optional platform.common.PipelineStatus status = 2;
+  optional platform.common.ConnectorType connector_type = 3;
+  
+  // Pagination
+  platform.common.PaginationRequest pagination = 4;
+}
+
+message ListPipelinesResponse {
+  repeated Pipeline pipelines = 1;
+  platform.common.PaginationResponse pagination = 2;
+}
+
+message CreatePipelineRequest {
+  int64 org_id = 1;
+  string name = 2;
+  platform.common.ConnectorType connector_type = 3;
+  
+  // Optional: use template for defaults
+  optional string template_id = 4;
+  
+  Schedule schedule = 5;
+  google.protobuf.Struct config = 6;
+  
+  // User creating the pipeline
+  int64 created_by = 7;
+}
+
+message CreatePipelineResponse {
+  Pipeline pipeline = 1;
+  platform.common.Error error = 2;
+  
+  // Optimization suggestions
+  repeated OptimizationSuggestion suggestions = 3;
+}
+
+message OptimizationSuggestion {
+  string type = 1;  // "merge_pipelines", "adjust_schedule", "add_metrics"
+  string message = 2;
+  google.protobuf.Struct details = 3;
+}
+
+message UpdatePipelineRequest {
+  string id = 1;
+  int64 org_id = 2;
+  
+  // Fields to update (only set fields are updated)
+  optional string name = 3;
+  optional platform.common.PipelineStatus status = 4;
+  optional Schedule schedule = 5;
+  optional google.protobuf.Struct config = 6;
+}
+
+message UpdatePipelineResponse {
+  Pipeline pipeline = 1;
+  platform.common.Error error = 2;
+}
+
+message DeletePipelineRequest {
+  string id = 1;
+  int64 org_id = 2;
+}
+
+message DeletePipelineResponse {
+  bool success = 1;
+  platform.common.Error error = 2;
+}
+
+message ValidatePipelineConfigRequest {
+  platform.common.ConnectorType connector_type = 1;
+  google.protobuf.Struct config = 2;
+}
+
+message ValidatePipelineConfigResponse {
+  bool valid = 1;
+  repeated ValidationIssue issues = 2;
+}
+
+message ValidationIssue {
+  string field = 1;
+  string code = 2;
+  string message = 3;
+  ValidationSeverity severity = 4;
+}
+
+enum ValidationSeverity {
+  VALIDATION_SEVERITY_UNSPECIFIED = 0;
+  VALIDATION_SEVERITY_ERROR = 1;
+  VALIDATION_SEVERITY_WARNING = 2;
+  VALIDATION_SEVERITY_INFO = 3;
+}
+
+// =============================================================================
+// Template Messages
+// =============================================================================
+
+message Template {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  platform.common.ConnectorType connector_type = 4;
+  google.protobuf.Struct default_config = 5;
+  repeated TemplateInput required_inputs = 6;
+  repeated TemplateInput optional_inputs = 7;
+  int32 usage_count = 8;
+  bool is_public = 9;
+  google.protobuf.Timestamp created_at = 10;
+}
+
+message TemplateInput {
+  string name = 1;
+  string label = 2;
+  string type = 3;  // "string", "number", "boolean", "select", "multi-select"
+  string description = 4;
+  google.protobuf.Value default_value = 5;
+  repeated string options = 6;  // For select/multi-select types
+  bool required = 7;
+}
+
+message ListTemplatesRequest {
+  // Optional: filter by connector type
+  optional platform.common.ConnectorType connector_type = 1;
+  
+  // Include private (org-specific) templates
+  bool include_private = 2;
+  
+  // Organization ID (for private templates)
+  optional int64 org_id = 3;
+}
+
+message ListTemplatesResponse {
+  repeated Template templates = 1;
+}
+
+message GetTemplateRequest {
+  string id = 1;
+}
+
+message GetTemplateResponse {
+  Template template = 1;
+  platform.common.Error error = 2;
+}
+
+message GetSmartDefaultsRequest {
+  int64 org_id = 1;
+  platform.common.ConnectorType connector_type = 2;
+}
+
+message GetSmartDefaultsResponse {
+  // Confidence score (0.0 - 1.0)
+  double confidence = 1;
+  
+  // Source of recommendations
+  string learned_from = 2;  // e.g., "47 similar organizations"
+  
+  // Suggested configuration
+  google.protobuf.Struct suggestions = 3;
+  
+  // Explanation of suggestions
+  repeated SmartDefaultExplanation explanations = 4;
+}
+
+message SmartDefaultExplanation {
+  string field = 1;
+  string suggestion = 2;
+  string reason = 3;
+}
+
+// =============================================================================
+// Rule Messages
+// =============================================================================
+
+message Rule {
+  string id = 1;
+  int64 org_id = 2;
+  string name = 3;
+  string description = 4;
+  
+  // Module this rule belongs to
+  platform.common.ModuleType module = 5;
+  
+  bool enabled = 6;
+  
+  // Rule conditions (JSON structure)
+  google.protobuf.Struct conditions = 7;
+  
+  // Actions to take when conditions match
+  google.protobuf.Struct actions = 8;
+  
+  // Optional schedule for evaluation
+  optional Schedule schedule = 9;
+  
+  // Rule version (for auditing)
+  int32 version = 10;
+  
+  int64 created_by = 11;
+  google.protobuf.Timestamp created_at = 12;
+  google.protobuf.Timestamp updated_at = 13;
+  
+  // Last evaluation stats
+  optional RuleStats stats = 14;
+}
+
+message RuleStats {
+  int64 total_evaluations = 1;
+  int64 total_matches = 2;
+  google.protobuf.Timestamp last_evaluated_at = 3;
+  google.protobuf.Timestamp last_matched_at = 4;
+}
+
+message GetRuleRequest {
+  string id = 1;
+  int64 org_id = 2;
+}
+
+message GetRuleResponse {
+  Rule rule = 1;
+  platform.common.Error error = 2;
+}
+
+message ListRulesRequest {
+  int64 org_id = 1;
+  
+  // Optional filters
+  optional platform.common.ModuleType module = 2;
+  optional bool enabled = 3;
+  
+  platform.common.PaginationRequest pagination = 4;
+}
+
+message ListRulesResponse {
+  repeated Rule rules = 1;
+  platform.common.PaginationResponse pagination = 2;
+}
+
+message CreateRuleRequest {
+  int64 org_id = 1;
+  string name = 2;
+  string description = 3;
+  platform.common.ModuleType module = 4;
+  google.protobuf.Struct conditions = 5;
+  google.protobuf.Struct actions = 6;
+  optional Schedule schedule = 7;
+  int64 created_by = 8;
+}
+
+message CreateRuleResponse {
+  Rule rule = 1;
+  platform.common.Error error = 2;
+}
+
+message UpdateRuleRequest {
+  string id = 1;
+  int64 org_id = 2;
+  
+  optional string name = 3;
+  optional string description = 4;
+  optional google.protobuf.Struct conditions = 5;
+  optional google.protobuf.Struct actions = 6;
+  optional Schedule schedule = 7;
+}
+
+message UpdateRuleResponse {
+  Rule rule = 1;
+  platform.common.Error error = 2;
+}
+
+message DeleteRuleRequest {
+  string id = 1;
+  int64 org_id = 2;
+}
+
+message DeleteRuleResponse {
+  bool success = 1;
+  platform.common.Error error = 2;
+}
+
+message ToggleRuleRequest {
+  string id = 1;
+  int64 org_id = 2;
+  bool enabled = 3;
+}
+
+message ToggleRuleResponse {
+  Rule rule = 1;
+  platform.common.Error error = 2;
+}
+
+message ValidateRuleConditionsRequest {
+  google.protobuf.Struct conditions = 1;
+  platform.common.ModuleType module = 2;
+}
+
+message ValidateRuleConditionsResponse {
+  bool valid = 1;
+  repeated ValidationIssue issues = 2;
+  
+  // Parsed variables found in conditions
+  repeated string variables = 3;
+}
+
+// =============================================================================
+// Schema Messages
+// =============================================================================
+
+message EntitySchema {
+  string entity_type = 1;
+  string version = 2;
+  repeated SchemaField fields = 3;
+  google.protobuf.Timestamp updated_at = 4;
+}
+
+message SchemaField {
+  string name = 1;
+  string type = 2;
+  string description = 3;
+  bool required = 4;
+  bool nullable = 5;
+  google.protobuf.Value default_value = 6;
+}
+
+message GetEntitySchemaRequest {
+  string entity_type = 1;
+  optional string version = 2;
+}
+
+message GetEntitySchemaResponse {
+  EntitySchema schema = 1;
+  platform.common.Error error = 2;
+}
+
+message ListEntitySchemasRequest {}
+
+message ListEntitySchemasResponse {
+  repeated EntitySchema schemas = 1;
+}

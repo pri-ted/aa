@@ -1,0 +1,546 @@
+// connector/v1/connector.proto
+// Connector Service - DSP adapters, OAuth management, and rate limiting
+syntax = "proto3";
+package platform.connector.v1;
+
+option go_package = "github.com/org/platform/gen/go/connector/v1";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/struct.proto";
+import "common/errors.proto";
+import "common/pagination.proto";
+import "common/types.proto";
+
+// =============================================================================
+// Connector Service Definition
+// =============================================================================
+
+service ConnectorService {
+  // ---------------------------------------------------------------------------
+  // Connector Management
+  // ---------------------------------------------------------------------------
+  
+  // ListConnectors returns all connectors for an organization
+  rpc ListConnectors(ListConnectorsRequest) returns (ListConnectorsResponse);
+  
+  // GetConnector retrieves a connector by ID
+  rpc GetConnector(GetConnectorRequest) returns (GetConnectorResponse);
+  
+  // GetConnectorHealth returns health status for a connector
+  rpc GetConnectorHealth(GetConnectorHealthRequest) returns (GetConnectorHealthResponse);
+  
+  // ---------------------------------------------------------------------------
+  // OAuth Operations
+  // ---------------------------------------------------------------------------
+  
+  // InitiateOAuth starts the OAuth flow for a DSP
+  rpc InitiateOAuth(InitiateOAuthRequest) returns (InitiateOAuthResponse);
+  
+  // CompleteOAuth completes the OAuth flow with authorization code
+  rpc CompleteOAuth(CompleteOAuthRequest) returns (CompleteOAuthResponse);
+  
+  // RefreshOAuthToken refreshes OAuth tokens for a connector
+  rpc RefreshOAuthToken(RefreshOAuthTokenRequest) returns (RefreshOAuthTokenResponse);
+  
+  // DisconnectConnector disconnects a DSP account
+  rpc DisconnectConnector(DisconnectConnectorRequest) returns (DisconnectConnectorResponse);
+  
+  // ---------------------------------------------------------------------------
+  // Data Fetch Operations
+  // ---------------------------------------------------------------------------
+  
+  // RequestFetch queues a data fetch request
+  rpc RequestFetch(RequestFetchRequest) returns (RequestFetchResponse);
+  
+  // GetFetchStatus returns status of a fetch request
+  rpc GetFetchStatus(GetFetchStatusRequest) returns (GetFetchStatusResponse);
+  
+  // CancelFetch cancels a pending fetch request
+  rpc CancelFetch(CancelFetchRequest) returns (CancelFetchResponse);
+  
+  // ---------------------------------------------------------------------------
+  // Account Operations
+  // ---------------------------------------------------------------------------
+  
+  // ListAccounts returns DSP accounts available for a connector
+  rpc ListAccounts(ListAccountsRequest) returns (ListAccountsResponse);
+  
+  // SyncAccounts triggers account list refresh from DSP
+  rpc SyncAccounts(SyncAccountsRequest) returns (SyncAccountsResponse);
+  
+  // ---------------------------------------------------------------------------
+  // Rate Limit Operations
+  // ---------------------------------------------------------------------------
+  
+  // GetRateLimitStatus returns current rate limit status
+  rpc GetRateLimitStatus(GetRateLimitStatusRequest) returns (GetRateLimitStatusResponse);
+  
+  // GetQueueStatus returns request queue status
+  rpc GetQueueStatus(GetQueueStatusRequest) returns (GetQueueStatusResponse);
+}
+
+// =============================================================================
+// Connector Messages
+// =============================================================================
+
+message Connector {
+  // Unique connector ID
+  string id = 1;
+  
+  // Organization ID
+  int64 org_id = 2;
+  
+  // Connector type
+  platform.common.ConnectorType connector_type = 3;
+  
+  // Display name
+  string name = 4;
+  
+  // Connection status
+  ConnectionStatus status = 5;
+  
+  // OAuth token expiration (if applicable)
+  optional google.protobuf.Timestamp token_expires_at = 6;
+  
+  // Last successful sync
+  optional google.protobuf.Timestamp last_sync_at = 7;
+  
+  // Health status
+  ConnectorHealth health = 8;
+  
+  // Number of connected accounts
+  int32 account_count = 9;
+  
+  // Timestamps
+  google.protobuf.Timestamp created_at = 10;
+  google.protobuf.Timestamp updated_at = 11;
+}
+
+enum ConnectionStatus {
+  CONNECTION_STATUS_UNSPECIFIED = 0;
+  CONNECTION_STATUS_CONNECTED = 1;
+  CONNECTION_STATUS_DISCONNECTED = 2;
+  CONNECTION_STATUS_TOKEN_EXPIRED = 3;
+  CONNECTION_STATUS_ERROR = 4;
+  CONNECTION_STATUS_PENDING = 5;
+}
+
+message ConnectorHealth {
+  // Overall health status
+  HealthStatus status = 1;
+  
+  // Last health check timestamp
+  google.protobuf.Timestamp last_check_at = 2;
+  
+  // Latency to DSP API (ms)
+  int32 latency_ms = 3;
+  
+  // Error rate (0.0 - 1.0)
+  double error_rate = 4;
+  
+  // Circuit breaker state
+  CircuitBreakerState circuit_breaker = 5;
+  
+  // Last error message (if any)
+  optional string last_error = 6;
+}
+
+enum HealthStatus {
+  HEALTH_STATUS_UNSPECIFIED = 0;
+  HEALTH_STATUS_HEALTHY = 1;
+  HEALTH_STATUS_DEGRADED = 2;
+  HEALTH_STATUS_UNHEALTHY = 3;
+}
+
+message CircuitBreakerState {
+  // Current state
+  CircuitState state = 1;
+  
+  // Failure count
+  int32 failure_count = 2;
+  
+  // Last failure timestamp
+  optional google.protobuf.Timestamp last_failure_at = 3;
+  
+  // When circuit will transition to half-open
+  optional google.protobuf.Timestamp recovery_at = 4;
+}
+
+enum CircuitState {
+  CIRCUIT_STATE_UNSPECIFIED = 0;
+  CIRCUIT_STATE_CLOSED = 1;
+  CIRCUIT_STATE_OPEN = 2;
+  CIRCUIT_STATE_HALF_OPEN = 3;
+}
+
+message ListConnectorsRequest {
+  int64 org_id = 1;
+  
+  // Optional: filter by type
+  optional platform.common.ConnectorType connector_type = 2;
+  
+  // Optional: filter by status
+  optional ConnectionStatus status = 3;
+}
+
+message ListConnectorsResponse {
+  repeated Connector connectors = 1;
+}
+
+message GetConnectorRequest {
+  string id = 1;
+  int64 org_id = 2;
+}
+
+message GetConnectorResponse {
+  Connector connector = 1;
+  platform.common.Error error = 2;
+}
+
+message GetConnectorHealthRequest {
+  string id = 1;
+}
+
+message GetConnectorHealthResponse {
+  ConnectorHealth health = 1;
+  platform.common.Error error = 2;
+}
+
+// =============================================================================
+// OAuth Messages
+// =============================================================================
+
+message InitiateOAuthRequest {
+  int64 org_id = 1;
+  platform.common.ConnectorType connector_type = 2;
+  
+  // URL to redirect after OAuth completes
+  string callback_url = 3;
+}
+
+message InitiateOAuthResponse {
+  // URL to redirect user to for authorization
+  string authorization_url = 1;
+  
+  // State token for CSRF protection
+  string state = 2;
+  
+  platform.common.Error error = 3;
+}
+
+message CompleteOAuthRequest {
+  // Authorization code from OAuth callback
+  string code = 1;
+  
+  // State token for verification
+  string state = 2;
+  
+  int64 org_id = 3;
+}
+
+message CompleteOAuthResponse {
+  // Created connector
+  Connector connector = 1;
+  
+  // List of discovered accounts
+  repeated DSPAccount accounts = 2;
+  
+  platform.common.Error error = 3;
+}
+
+message RefreshOAuthTokenRequest {
+  string connector_id = 1;
+}
+
+message RefreshOAuthTokenResponse {
+  bool success = 1;
+  google.protobuf.Timestamp new_expires_at = 2;
+  platform.common.Error error = 3;
+}
+
+message DisconnectConnectorRequest {
+  string id = 1;
+  int64 org_id = 2;
+}
+
+message DisconnectConnectorResponse {
+  bool success = 1;
+  platform.common.Error error = 2;
+}
+
+// =============================================================================
+// Fetch Messages
+// =============================================================================
+
+message RequestFetchRequest {
+  string connector_id = 1;
+  int64 org_id = 2;
+  
+  // Type of report to fetch
+  ReportType report_type = 3;
+  
+  // Date range for the report
+  platform.common.DateRange date_range = 4;
+  
+  // Metrics to include
+  repeated string metrics = 5;
+  
+  // Dimensions to include
+  repeated string dimensions = 6;
+  
+  // Filters to apply
+  repeated FetchFilter filters = 7;
+  
+  // Request priority
+  FetchPriority priority = 8;
+  
+  // Idempotency key for deduplication
+  optional string idempotency_key = 9;
+}
+
+enum ReportType {
+  REPORT_TYPE_UNSPECIFIED = 0;
+  REPORT_TYPE_CAMPAIGN_PERFORMANCE = 1;
+  REPORT_TYPE_INSERTION_ORDER_PERFORMANCE = 2;
+  REPORT_TYPE_LINE_ITEM_PERFORMANCE = 3;
+  REPORT_TYPE_CREATIVE_PERFORMANCE = 4;
+  REPORT_TYPE_SDF = 5;
+  REPORT_TYPE_BUDGET = 6;
+  REPORT_TYPE_AUDIENCE = 7;
+}
+
+message FetchFilter {
+  string field = 1;
+  string operator = 2;  // "eq", "ne", "in", "not_in"
+  repeated string values = 3;
+}
+
+enum FetchPriority {
+  FETCH_PRIORITY_UNSPECIFIED = 0;
+  FETCH_PRIORITY_LOW = 1;
+  FETCH_PRIORITY_NORMAL = 2;
+  FETCH_PRIORITY_HIGH = 3;
+  FETCH_PRIORITY_URGENT = 4;
+}
+
+message RequestFetchResponse {
+  // Unique request ID
+  string request_id = 1;
+  
+  // Initial status
+  FetchStatus status = 2;
+  
+  // Position in queue (if queued)
+  int32 queue_position = 3;
+  
+  // Estimated wait time in seconds
+  int32 estimated_wait_seconds = 4;
+  
+  // If batched with other requests
+  repeated string batched_with = 5;
+  
+  // Current rate limit status
+  RateLimitInfo rate_limit = 6;
+  
+  platform.common.Error error = 7;
+}
+
+enum FetchStatus {
+  FETCH_STATUS_UNSPECIFIED = 0;
+  FETCH_STATUS_QUEUED = 1;
+  FETCH_STATUS_PROCESSING = 2;
+  FETCH_STATUS_WAITING_FOR_DSP = 3;
+  FETCH_STATUS_DOWNLOADING = 4;
+  FETCH_STATUS_COMPLETED = 5;
+  FETCH_STATUS_FAILED = 6;
+  FETCH_STATUS_CANCELLED = 7;
+}
+
+message RateLimitInfo {
+  // Current request count
+  int32 current = 1;
+  
+  // Maximum allowed
+  int32 limit = 2;
+  
+  // When limit resets
+  google.protobuf.Timestamp reset_at = 3;
+  
+  // Daily quota info (if applicable)
+  optional DailyQuotaInfo daily_quota = 4;
+}
+
+message DailyQuotaInfo {
+  int32 used = 1;
+  int32 limit = 2;
+  google.protobuf.Timestamp reset_at = 3;
+}
+
+message GetFetchStatusRequest {
+  string request_id = 1;
+}
+
+message GetFetchStatusResponse {
+  string request_id = 1;
+  FetchStatus status = 2;
+  
+  // Progress percentage (0-100)
+  int32 progress = 3;
+  
+  // Progress message
+  string progress_message = 4;
+  
+  // Result (if completed)
+  optional FetchResult result = 5;
+  
+  // Error message (if failed)
+  optional string error_message = 6;
+  
+  // Timestamps
+  google.protobuf.Timestamp created_at = 7;
+  optional google.protobuf.Timestamp started_at = 8;
+  optional google.protobuf.Timestamp completed_at = 9;
+}
+
+message FetchResult {
+  // Number of records fetched
+  int64 record_count = 1;
+  
+  // Size in bytes
+  int64 size_bytes = 2;
+  
+  // Storage location (S3 path)
+  string storage_path = 3;
+  
+  // Checksum for verification
+  string checksum = 4;
+  
+  // Execution time in milliseconds
+  int64 execution_time_ms = 5;
+  
+  // Data freshness (timestamp of newest record)
+  google.protobuf.Timestamp data_freshness = 6;
+}
+
+message CancelFetchRequest {
+  string request_id = 1;
+}
+
+message CancelFetchResponse {
+  bool success = 1;
+  platform.common.Error error = 2;
+}
+
+// =============================================================================
+// Account Messages
+// =============================================================================
+
+message DSPAccount {
+  // Account ID in platform
+  string id = 1;
+  
+  // External ID in DSP
+  string external_id = 2;
+  
+  // Account name
+  string name = 3;
+  
+  // Account status
+  AccountStatus status = 4;
+  
+  // Account type (partner, advertiser, etc.)
+  string account_type = 5;
+  
+  // Currency
+  string currency = 6;
+  
+  // Last sync timestamp
+  optional google.protobuf.Timestamp last_sync_at = 7;
+  
+  // Number of campaigns
+  int32 campaign_count = 8;
+}
+
+enum AccountStatus {
+  ACCOUNT_STATUS_UNSPECIFIED = 0;
+  ACCOUNT_STATUS_ACTIVE = 1;
+  ACCOUNT_STATUS_PAUSED = 2;
+  ACCOUNT_STATUS_SUSPENDED = 3;
+}
+
+message ListAccountsRequest {
+  string connector_id = 1;
+  int64 org_id = 2;
+  
+  // Optional: filter by status
+  optional AccountStatus status = 3;
+  
+  platform.common.PaginationRequest pagination = 4;
+}
+
+message ListAccountsResponse {
+  repeated DSPAccount accounts = 1;
+  platform.common.PaginationResponse pagination = 2;
+}
+
+message SyncAccountsRequest {
+  string connector_id = 1;
+}
+
+message SyncAccountsResponse {
+  // Number of accounts found
+  int32 total_accounts = 1;
+  
+  // New accounts discovered
+  int32 new_accounts = 2;
+  
+  // Accounts removed
+  int32 removed_accounts = 3;
+  
+  platform.common.Error error = 4;
+}
+
+// =============================================================================
+// Rate Limit / Queue Messages
+// =============================================================================
+
+message GetRateLimitStatusRequest {
+  // Optional: specific connector
+  optional string connector_id = 1;
+  
+  // Optional: specific DSP type
+  optional platform.common.ConnectorType connector_type = 2;
+}
+
+message GetRateLimitStatusResponse {
+  repeated DSPRateLimitStatus limits = 1;
+}
+
+message DSPRateLimitStatus {
+  platform.common.ConnectorType connector_type = 1;
+  RateLimitInfo rate_limit = 2;
+  
+  // Current queue depth
+  int32 queue_depth = 3;
+  
+  // Average wait time (ms)
+  int64 avg_wait_time_ms = 4;
+}
+
+message GetQueueStatusRequest {
+  int64 org_id = 1;
+}
+
+message GetQueueStatusResponse {
+  // Total pending requests for org
+  int32 pending_requests = 1;
+  
+  // Requests by priority
+  map<string, int32> by_priority = 2;
+  
+  // Requests by connector type
+  map<string, int32> by_connector_type = 3;
+  
+  // Estimated completion time for oldest request
+  optional google.protobuf.Timestamp estimated_completion = 4;
+}

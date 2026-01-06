@@ -1,0 +1,66 @@
+// common/pagination.proto
+// Shared pagination types used across all list operations
+syntax = "proto3";
+package platform.common;
+
+option go_package = "github.com/org/platform/gen/go/common";
+
+// PaginationRequest is included in all list requests
+message PaginationRequest {
+  // Page number (1-indexed)
+  int32 page = 1;
+  
+  // Items per page (default: 20, max: 100)
+  int32 limit = 2;
+  
+  // Field to sort by
+  string sort_by = 3;
+  
+  // Sort order: "asc" or "desc"
+  string sort_order = 4;
+}
+
+// PaginationResponse is included in all list responses
+message PaginationResponse {
+  // Total number of items across all pages
+  int32 total = 1;
+  
+  // Current page number
+  int32 page = 2;
+  
+  // Items per page
+  int32 limit = 3;
+  
+  // Total number of pages
+  int32 total_pages = 4;
+  
+  // Whether there is a next page
+  bool has_next = 5;
+  
+  // Whether there is a previous page
+  bool has_previous = 6;
+}
+
+// CursorPaginationRequest for cursor-based pagination (large datasets)
+message CursorPaginationRequest {
+  // Cursor from previous response
+  string cursor = 1;
+  
+  // Items per page (default: 20, max: 100)
+  int32 limit = 2;
+  
+  // Sort order: "asc" or "desc"
+  string sort_order = 3;
+}
+
+// CursorPaginationResponse for cursor-based pagination
+message CursorPaginationResponse {
+  // Cursor for next page (empty if no more pages)
+  string next_cursor = 1;
+  
+  // Whether there are more items
+  bool has_more = 2;
+  
+  // Total count (optional, may be omitted for performance)
+  optional int32 total = 3;
+}

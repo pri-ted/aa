@@ -1,0 +1,137 @@
+{
+  "type": "record",
+  "name": "SilverDataProcessed",
+  "namespace": "platform.events.silver",
+  "doc": "Event published when Silver layer completes processing Bronze data",
+  "fields": [
+    {
+      "name": "metadata",
+      "type": "platform.events.common.EventMetadata",
+      "doc": "Standard event metadata"
+    },
+    {
+      "name": "source_event_id",
+      "type": "string",
+      "doc": "ID of the bronze.data.cleaned event that triggered this processing"
+    },
+    {
+      "name": "pipeline_id",
+      "type": "string",
+      "doc": "Pipeline being executed"
+    },
+    {
+      "name": "execution_id",
+      "type": "string",
+      "doc": "ETL execution ID"
+    },
+    {
+      "name": "connector_type",
+      "type": "platform.events.connector.ConnectorType",
+      "doc": "Type of source connector"
+    },
+    {
+      "name": "tables_updated",
+      "type": {
+        "type": "array",
+        "items": {
+          "type": "record",
+          "name": "TableUpdate",
+          "fields": [
+            {"name": "table_name", "type": "string", "doc": "Iceberg table name"},
+            {"name": "partition", "type": "string", "doc": "Partition updated"},
+            {"name": "snapshot_id", "type": "long", "doc": "Iceberg snapshot ID"},
+            {"name": "records_written", "type": "long", "doc": "Records written to this table"},
+            {"name": "records_updated", "type": "long", "doc": "Existing records updated"},
+            {"name": "records_deleted", "type": "long", "doc": "Records soft-deleted"}
+          ]
+        }
+      },
+      "doc": "Tables updated during this processing"
+    },
+    {
+      "name": "record_counts",
+      "type": {
+        "type": "record",
+        "name": "SilverRecordCounts",
+        "fields": [
+          {"name": "input_records", "type": "long", "doc": "Records read from Bronze"},
+          {"name": "transformed_records", "type": "long", "doc": "Records after transformation"},
+          {"name": "deduplicated", "type": "long", "doc": "Duplicate entities removed"},
+          {"name": "filtered", "type": "long", "doc": "Records filtered out"},
+          {"name": "quarantined", "type": "long", "doc": "Records sent to quarantine"},
+          {"name": "output_records", "type": "long", "doc": "Records written to Silver"}
+        ]
+      },
+      "doc": "Record processing statistics"
+    },
+    {
+      "name": "quality_metrics",
+      "type": {
+        "type": "record",
+        "name": "SilverQualityMetrics",
+        "fields": [
+          {
+            "name": "avg_quality_score",
+            "type": "double",
+            "doc": "Average quality score of processed records (0-100)"
+          },
+          {
+            "name": "min_quality_score",
+            "type": "double",
+            "doc": "Minimum quality score"
+          },
+          {
+            "name": "quality_distribution",
+            "type": {"type": "map", "values": "long"},
+            "doc": "Distribution of records by quality tier (e.g., '90-100': 1000)"
+          },
+          {
+            "name": "type_casting_errors",
+            "type": "long",
+            "doc": "Number of type casting errors"
+          },
+          {
+            "name": "null_handling_applied",
+            "type": "long",
+            "doc": "Records where null handling was applied"
+          },
+          {
+            "name": "normalization_applied",
+            "type": "long",
+            "doc": "Records where normalization rules were applied"
+          }
+        ]
+      },
+      "doc": "Data quality metrics"
+    },
+    {
+      "name": "entity_counts",
+      "type": {"type": "map", "values": "long"},
+      "doc": "Count of entities by type (e.g., 'campaign': 50, 'line_item': 200)"
+    },
+    {
+      "name": "processing_time_ms",
+      "type": "long",
+      "doc": "Total processing time (milliseconds)"
+    },
+    {
+      "name": "date_range",
+      "type": "platform.events.connector.DateRange",
+      "doc": "Date range of the processed data"
+    },
+    {
+      "name": "quarantine_details",
+      "type": ["null", {
+        "type": "record",
+        "name": "QuarantineDetails",
+        "fields": [
+          {"name": "table_name", "type": "string", "doc": "Quarantine table location"},
+          {"name": "record_count", "type": "long", "doc": "Records quarantined"},
+          {"name": "reasons", "type": {"type": "map", "values": "long"}, "doc": "Quarantine reasons with counts"}
+        ]
+      }],
+      "default": null,
+      "doc": "Details if records were quarantined"
+    }
+  ]
+}
