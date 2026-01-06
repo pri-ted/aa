@@ -1,0 +1,107 @@
+# Service configuration
+serviceName: ""  # REQUIRED: Must be set (e.g., "auth", "config")
+
+# Deployment configuration
+replicaCount: 3
+
+image:
+  repository: ""  # REQUIRED: Docker image repository
+  pullPolicy: IfNotPresent
+  tag: "latest"   # Override with specific version
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+# Service configuration
+service:
+  type: ClusterIP
+  port: 9090
+  targetPort: 9090
+  annotations: {}
+
+# Resource limits
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+# Horizontal Pod Autoscaler
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+# Environment variables
+env: {}
+  # DATABASE_URL: "postgresql://..."
+  # REDIS_URL: "redis://..."
+  # LOG_LEVEL: "info"
+
+# Environment from ConfigMaps/Secrets
+envFrom: []
+  # - configMapRef:
+  #     name: common-config
+  # - secretRef:
+  #     name: database-secret
+
+# Probes
+livenessProbe:
+  enabled: true
+  tcpSocket:
+    port: 9090
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+readinessProbe:
+  enabled: true
+  tcpSocket:
+    port: 9090
+  initialDelaySeconds: 10
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+# Security
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+
+# Pod disruption budget
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+# Service account
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# Additional volumes
+volumes: []
+volumeMounts: []
+
+# Node selector
+nodeSelector: {}
+
+# Tolerations
+tolerations: []
+
+# Affinity
+affinity: {}

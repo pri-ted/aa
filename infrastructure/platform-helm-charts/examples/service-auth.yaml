@@ -1,0 +1,28 @@
+# Example: Deploy service-auth
+
+serviceName: auth
+replicaCount: 3
+
+image:
+  repository: campaign-platform/service-auth
+  tag: v1.0.0
+
+env:
+  DATABASE_URL: "postgresql://platform:password@postgres.platform-data:5432/platform"
+  REDIS_URL: "redis://redis.platform-data:6379"
+  JWT_SECRET: "change-me-in-production"
+  LOG_LEVEL: "info"
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70

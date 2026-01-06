@@ -1,0 +1,16 @@
+apiVersion: v2
+name: service-template
+description: Helm chart template for Campaign Platform microservices
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - campaign-platform
+  - microservice
+  - kubernetes
+maintainers:
+  - name: Platform Team
+    email: platform-team@campaign-platform.com
+home: https://github.com/campaign-platform/platform-helm-charts
+sources:
+  - https://github.com/campaign-platform/platform-helm-charts

@@ -1,0 +1,26 @@
+name: Lint Helm Charts
+
+on: [push, pull_request]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: '3.12.0'
+      
+      - name: Lint service-template
+        run: helm lint charts/service-template
+      
+      - name: Lint database-template
+        run: helm lint charts/database-template
+      
+      - name: Template service-template
+        run: |
+          helm template test charts/service-template \
+            --set serviceName=test \
+            --set image.repository=nginx
