@@ -1,0 +1,29 @@
+{
+  "dashboard": {
+    "title": "PostgreSQL Performance",
+    "tags": ["database", "postgresql"],
+    "panels": [
+      {
+        "title": "Active Connections",
+        "type": "graph",
+        "targets": [
+          {"expr": "pg_stat_database_numbackends"}
+        ]
+      },
+      {
+        "title": "Query Latency P95",
+        "type": "graph",
+        "targets": [
+          {"expr": "histogram_quantile(0.95, pg_stat_statements_mean_time_seconds)"}
+        ]
+      },
+      {
+        "title": "Transaction Rate",
+        "type": "graph",
+        "targets": [
+          {"expr": "rate(pg_stat_database_xact_commit[5m])"}
+        ]
+      }
+    ]
+  }
+}

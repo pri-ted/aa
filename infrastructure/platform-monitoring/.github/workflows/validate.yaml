@@ -1,0 +1,23 @@
+name: Validate Monitoring
+
+on: [push, pull_request]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Validate JSON dashboards
+        run: |
+          for file in dashboards/*/*.json; do
+            echo "Validating $file"
+            cat "$file" | jq empty
+          done
+      
+      - name: Validate YAML alerts
+        run: |
+          for file in alerts/*/*.yaml; do
+            echo "Validating $file"
+            cat "$file" | yq eval '.' > /dev/null
+          done

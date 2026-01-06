@@ -1,0 +1,62 @@
+{
+  "dashboard": {
+    "title": "Campaign Platform - Overview",
+    "tags": ["platform", "overview"],
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Total Requests/sec",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "sum(rate(http_requests_total[5m]))",
+            "legendFormat": "Requests/sec"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "Error Rate %",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "sum(rate(http_requests_total{status=~\"5..\"}[5m])) / sum(rate(http_requests_total[5m])) * 100",
+            "legendFormat": "Error Rate"
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Response Time P95",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
+            "legendFormat": "P95 Latency"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Active Services",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "count(up{job=~\"service-.*\"} == 1)"
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "Active Campaigns",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(campaign_active_total)"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "dashboard": {
+    "title": "Campaign Performance",
+    "tags": ["campaigns", "performance"],
+    "panels": [
+      {
+        "title": "Total Impressions",
+        "type": "stat",
+        "targets": [
+          {"expr": "sum(campaign_impressions_total)"}
+        ]
+      },
+      {
+        "title": "Total Spend",
+        "type": "stat",
+        "targets": [
+          {"expr": "sum(campaign_spend_total)"}
+        ]
+      },
+      {
+        "title": "CTR by Campaign",
+        "type": "graph",
+        "targets": [
+          {"expr": "campaign_ctr by (campaign_name)"}
+        ]
+      },
+      {
+        "title": "ROAS by Campaign",
+        "type": "graph",
+        "targets": [
+          {"expr": "campaign_roas by (campaign_name)"}
+        ]
+      }
+    ]
+  }
+}

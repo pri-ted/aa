@@ -1,0 +1,54 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: platform-critical-alerts
+  namespace: platform-monitoring
+  labels:
+    prometheus: kube-prometheus
+    severity: critical
+spec:
+  groups:
+  - name: platform_critical
+    interval: 30s
+    rules:
+    - alert: ServiceDown
+      expr: up{job=~"service-.*"} == 0
+      for: 5m
+      labels:
+        severity: critical
+        team: platform
+      annotations:
+        summary: "Service {{ $labels.job }} is down"
+        description: "Service {{ $labels.job }} has been down for more than 5 minutes"
+        runbook_url: "https://runbooks.company.com/ServiceDown"
+    
+    - alert: DatabaseDown
+      expr: up{job=~"postgres|clickhouse|redis"} == 0
+      for: 2m
+      labels:
+        severity: critical
+        team: data
+      annotations:
+        summary: "Database {{ $labels.job }} is unreachable"
+        description: "{{ $labels.job }} has been unreachable for 2 minutes"
+        runbook_url: "https://runbooks.company.com/DatabaseDown"
+    
+    - alert: HighErrorRate
+      expr: sum(rate(http_requests_total{status=~"5.."}[10m])) / sum(rate(http_requests_total[10m])) > 0.05
+      for: 10m
+      labels:
+        severity: critical
+        team: platform
+      annotations:
+        summary: "High error rate detected"
+        description: "Error rate is {{ $value | humanizePercentage }} (threshold: 5%)"
+    
+    - alert: DiskSpaceCritical
+      expr: (node_filesystem_avail_bytes / node_filesystem_size_bytes) < 0.05
+      for: 5m
+      labels:
+        severity: critical
+        team: infrastructure
+      annotations:
+        summary: "Disk space critically low on {{ $labels.instance }}"
+        description: "Only {{ $value | humanizePercentage }} disk space remaining"
