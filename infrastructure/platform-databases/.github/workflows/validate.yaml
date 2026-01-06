@@ -1,0 +1,39 @@
+name: Validate SQL
+
+on: [push, pull_request]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Run migrations
+        env:
+          PGPASSWORD: postgres
+        run: |
+          for f in postgresql/migrations/*.sql; do
+            echo "Testing $f"
+            psql -h localhost -U postgres -d test_db -f "$f"
+          done
+      
+      - name: Verify schema
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h localhost -U postgres -d test_db -c "\dt"
