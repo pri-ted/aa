@@ -1,0 +1,26 @@
+server:
+  dev:
+    enabled: true
+    devRootToken: "root"
+  
+  dataStorage:
+    enabled: false
+  
+  standalone:
+    enabled: true
+  
+  service:
+    type: ClusterIP
+  
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 250m
+    limits:
+      memory: 512Mi
+      cpu: 500m
+
+ui:
+  enabled: true
+  serviceType: NodePort
+  serviceNodePort: 30000

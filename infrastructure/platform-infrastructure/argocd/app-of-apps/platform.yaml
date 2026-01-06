@@ -1,0 +1,109 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-infrastructure
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  
+  source:
+    repoURL: https://github.com/AtomicAds/platform-infrastructure.git
+    targetRevision: main
+    path: argocd/apps
+  
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-system
+  namespace: argocd
+spec:
+  project: default
+  
+  source:
+    repoURL: https://github.com/AtomicAds/platform-infrastructure.git
+    targetRevision: main
+    path: kubernetes/platform-system
+  
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: platform-system
+  
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-data
+  namespace: argocd
+spec:
+  project: default
+  
+  source:
+    repoURL: https://github.com/AtomicAds/platform-infrastructure.git
+    targetRevision: main
+    path: kubernetes/platform-data
+  
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: platform-data
+  
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-monitoring
+  namespace: argocd
+spec:
+  project: default
+  
+  source:
+    repoURL: https://github.com/AtomicAds/platform-infrastructure.git
+    targetRevision: main
+    path: kubernetes/platform-monitoring
+  
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: platform-monitoring
+  
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

@@ -1,0 +1,108 @@
+# Resource Quotas for Platform Namespaces
+# Prevents resource exhaustion and controls costs
+
+---
+# Platform System Namespace Quota
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: platform-system-quota
+  namespace: platform-system
+spec:
+  hard:
+    # Compute resources
+    requests.cpu: "10"
+    requests.memory: "20Gi"
+    limits.cpu: "20"
+    limits.memory: "40Gi"
+    
+    # Storage
+    requests.storage: "100Gi"
+    persistentvolumeclaims: "10"
+    
+    # Objects
+    pods: "50"
+    services: "20"
+    configmaps: "50"
+    secrets: "50"
+
+---
+# Platform Apps Namespace Quota (Development)
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: platform-apps-quota
+  namespace: platform-apps
+spec:
+  hard:
+    # Compute resources - adjusted for dev environment
+    requests.cpu: "30"
+    requests.memory: "60Gi"
+    limits.cpu: "60"
+    limits.memory: "120Gi"
+    
+    # Storage
+    requests.storage: "200Gi"
+    persistentvolumeclaims: "20"
+    
+    # Objects
+    pods: "100"
+    services: "50"
+    configmaps: "100"
+    secrets: "100"
+    
+  scopeSelector:
+    matchExpressions:
+      - operator: In
+        scopeName: PriorityClass
+        values: ["system-cluster-critical", "system-node-critical", "high-priority"]
+
+---
+# Platform Data Namespace Quota
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: platform-data-quota
+  namespace: platform-data
+spec:
+  hard:
+    # Compute resources
+    requests.cpu: "20"
+    requests.memory: "40Gi"
+    limits.cpu: "40"
+    limits.memory: "80Gi"
+    
+    # Storage - higher for databases
+    requests.storage: "500Gi"
+    persistentvolumeclaims: "30"
+    
+    # Objects
+    pods: "50"
+    services: "30"
+    configmaps: "50"
+    secrets: "50"
+
+---
+# Platform Monitoring Namespace Quota
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: platform-monitoring-quota
+  namespace: platform-monitoring
+spec:
+  hard:
+    # Compute resources
+    requests.cpu: "8"
+    requests.memory: "16Gi"
+    limits.cpu: "16"
+    limits.memory: "32Gi"
+    
+    # Storage
+    requests.storage: "200Gi"
+    persistentvolumeclaims: "15"
+    
+    # Objects
+    pods: "30"
+    services: "15"
+    configmaps: "30"
+    secrets: "30"

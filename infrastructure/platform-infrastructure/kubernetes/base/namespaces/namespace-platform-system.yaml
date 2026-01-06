@@ -1,0 +1,68 @@
+# Platform System Namespace
+# Core infrastructure components: ArgoCD, Vault, Cert-Manager, Ingress
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: platform-system
+  labels:
+    name: platform-system
+    tier: system
+    istio-injection: enabled
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+  annotations:
+    description: "Core platform infrastructure components"
+---
+# Platform Apps Namespace  
+# Application services: Auth, Config, Connector, ETL, etc.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: platform-apps
+  labels:
+    name: platform-apps
+    tier: apps
+    istio-injection: enabled
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+  annotations:
+    description: "Platform application services"
+    scheduler.alpha.kubernetes.io/defaultTolerations: |
+      [{"key": "pool", "operator": "Equal", "value": "apps", "effect": "NoSchedule"}]
+---
+# Platform Data Namespace
+# Data layer: PostgreSQL, ClickHouse, Redis, Kafka
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: platform-data
+  labels:
+    name: platform-data
+    tier: data
+    istio-injection: enabled
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/audit: baseline
+    pod-security.kubernetes.io/warn: baseline
+  annotations:
+    description: "Data layer components and operators"
+    scheduler.alpha.kubernetes.io/defaultTolerations: |
+      [{"key": "pool", "operator": "Equal", "value": "data", "effect": "NoSchedule"}]
+---
+# Platform Monitoring Namespace
+# Observability: Prometheus, Grafana, Loki, Tempo
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: platform-monitoring
+  labels:
+    name: platform-monitoring
+    tier: monitoring
+    istio-injection: disabled
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+  annotations:
+    description: "Monitoring and observability stack"

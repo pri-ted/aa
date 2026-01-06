@@ -1,0 +1,238 @@
+# Local Development Makefile
+# For testing Campaign Lifecycle Platform on Docker-based Kubernetes
+
+.PHONY: help local-start local-stop local-status local-deploy local-test local-clean
+
+help:
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "  CAMPAIGN LIFECYCLE PLATFORM - LOCAL DEVELOPMENT"
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo ""
+	@echo "📦 Setup Commands:"
+	@echo "  make local-check        - Check prerequisites"
+	@echo "  make local-start-docker - Use Docker Desktop Kubernetes"
+	@echo "  make local-start-kind   - Create kind cluster"
+	@echo ""
+	@echo "🚀 Deployment Commands:"
+	@echo "  make local-deploy-all   - Deploy everything (namespaces + infra + samples)"
+	@echo "  make local-deploy-ns    - Deploy namespaces only"
+	@echo "  make local-deploy-argocd - Deploy ArgoCD"
+	@echo "  make local-deploy-vault  - Deploy Vault"
+	@echo "  make local-deploy-db     - Deploy PostgreSQL"
+	@echo "  make local-deploy-sample - Deploy sample service"
+	@echo ""
+	@echo "🔍 Status & Testing:"
+	@echo "  make local-status       - Check cluster status"
+	@echo "  make local-test         - Run all tests"
+	@echo "  make local-logs         - View service logs"
+	@echo "  make local-urls         - Show access URLs"
+	@echo ""
+	@echo "🔧 Utilities:"
+	@echo "  make local-forward      - Port-forward all services"
+	@echo "  make local-shell-db     - PostgreSQL shell"
+	@echo "  make local-shell-vault  - Vault shell"
+	@echo ""
+	@echo "🧹 Cleanup:"
+	@echo "  make local-clean        - Remove all resources"
+	@echo "  make local-stop-kind    - Delete kind cluster"
+	@echo ""
+
+# Check prerequisites
+local-check:
+	@echo "Checking prerequisites..."
+	@command -v docker >/dev/null 2>&1 || { echo "❌ docker not found"; exit 1; }
+	@command -v kubectl >/dev/null 2>&1 || { echo "❌ kubectl not found"; exit 1; }
+	@command -v helm >/dev/null 2>&1 || { echo "❌ helm not found"; exit 1; }
+	@echo "✅ All prerequisites installed"
+
+# Start with Docker Desktop
+local-start-docker: local-check
+	@echo "Using Docker Desktop Kubernetes..."
+	@kubectl config use-context docker-desktop
+	@kubectl get nodes || { echo "❌ Kubernetes not enabled in Docker Desktop"; exit 1; }
+	@echo "✅ Docker Desktop Kubernetes ready"
+
+# Start with kind
+local-start-kind: local-check
+	@if ! command -v kind >/dev/null 2>&1; then \
+		echo "❌ kind not found. Install with: brew install kind"; \
+		exit 1; \
+	fi
+	@echo "Creating kind cluster..."
+	@if kind get clusters | grep -q AtomicAds-local; then \
+		echo "⚠️  Cluster already exists. Use 'make local-stop-kind' first"; \
+	else \
+		kind create cluster --name AtomicAds-local --config kind-config.yaml; \
+	fi
+	@echo "✅ kind cluster ready"
+
+# Deploy namespaces
+local-deploy-ns:
+	@echo "📦 Creating namespaces..."
+	@kubectl apply -f local-k8s/namespaces.yaml
+	@echo "✅ Namespaces created"
+
+# Deploy ArgoCD
+local-deploy-argocd:
+	@echo "🔄 Deploying ArgoCD..."
+	@kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
+	@kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+	@echo "⏳ Waiting for ArgoCD to be ready (may take 2-3 minutes)..."
+	@kubectl wait --for=condition=available --timeout=300s deployment/argocd-server -n argocd
+	@echo "✅ ArgoCD deployed"
+	@echo ""
+	@echo "ArgoCD Password:"
+	@kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
+	@echo ""
+
+# Deploy Vault
+local-deploy-vault:
+	@echo "🔐 Deploying Vault..."
+	@helm repo add hashicorp https://helm.releases.hashicorp.com >/dev/null 2>&1 || true
+	@helm repo update >/dev/null 2>&1
+	@helm install vault hashicorp/vault \
+		--namespace platform-system \
+		--values local-k8s/vault-values.yaml \
+		--wait \
+		--timeout 5m
+	@echo "✅ Vault deployed (dev mode with token: root)"
+
+# Deploy PostgreSQL
+local-deploy-db:
+	@echo "💾 Deploying PostgreSQL..."
+	@kubectl apply -f local-k8s/postgres.yaml
+	@echo "⏳ Waiting for PostgreSQL to be ready..."
+	@kubectl wait --for=condition=ready pod -l app=postgres -n platform-data --timeout=120s
+	@echo "✅ PostgreSQL deployed"
+
+# Deploy sample service
+local-deploy-sample:
+	@echo "🎨 Deploying sample service..."
+	@kubectl apply -f local-k8s/sample-service/
+	@echo "⏳ Waiting for sample service to be ready..."
+	@kubectl wait --for=condition=available --timeout=120s deployment/sample-service -n platform-apps
+	@echo "✅ Sample service deployed"
+
+# Deploy everything
+local-deploy-all: local-deploy-ns local-deploy-argocd local-deploy-vault local-deploy-db local-deploy-sample
+	@echo ""
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "  ✅ LOCAL ENVIRONMENT DEPLOYED SUCCESSFULLY"
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@make local-urls
+
+# Show status
+local-status:
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "  CLUSTER STATUS"
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo ""
+	@echo "Nodes:"
+	@kubectl get nodes
+	@echo ""
+	@echo "Namespaces:"
+	@kubectl get namespaces | grep platform
+	@echo ""
+	@echo "All Pods:"
+	@kubectl get pods --all-namespaces | grep -E "argocd|vault|postgres|sample"
+
+# Run tests
+local-test:
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "  RUNNING TESTS"
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo ""
+	@echo "1️⃣  Testing Namespaces..."
+	@kubectl get namespace platform-system >/dev/null 2>&1 && echo "   ✅ platform-system" || echo "   ❌ platform-system"
+	@kubectl get namespace platform-apps >/dev/null 2>&1 && echo "   ✅ platform-apps" || echo "   ❌ platform-apps"
+	@kubectl get namespace platform-data >/dev/null 2>&1 && echo "   ✅ platform-data" || echo "   ❌ platform-data"
+	@echo ""
+	@echo "2️⃣  Testing ArgoCD..."
+	@kubectl get pods -n argocd -l app.kubernetes.io/name=argocd-server 2>/dev/null | grep -q Running && echo "   ✅ ArgoCD Running" || echo "   ❌ ArgoCD Not Running"
+	@echo ""
+	@echo "3️⃣  Testing Vault..."
+	@kubectl get pods -n platform-system -l app.kubernetes.io/name=vault 2>/dev/null | grep -q Running && echo "   ✅ Vault Running" || echo "   ❌ Vault Not Running"
+	@echo ""
+	@echo "4️⃣  Testing PostgreSQL..."
+	@kubectl get pods -n platform-data -l app=postgres 2>/dev/null | grep -q Running && echo "   ✅ PostgreSQL Running" || echo "   ❌ PostgreSQL Not Running"
+	@echo ""
+	@echo "5️⃣  Testing Sample Service..."
+	@kubectl get pods -n platform-apps -l app=sample-service 2>/dev/null | grep -q Running && echo "   ✅ Sample Service Running" || echo "   ❌ Sample Service Not Running"
+	@echo ""
+	@echo "6️⃣  Testing HTTP Endpoints..."
+	@curl -s http://localhost:30001 | grep -q "Campaign Lifecycle Platform" && echo "   ✅ Sample Service Accessible" || echo "   ⚠️  Sample Service Not Accessible (try: make local-forward)"
+
+# Show URLs
+local-urls:
+	@echo ""
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "  ACCESS URLS"
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo ""
+	@echo "📱 Sample Service:    http://localhost:30001"
+	@echo "🔄 ArgoCD UI:         https://localhost:8080"
+	@echo "   Username:          admin"
+	@echo "   Password:          $$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" 2>/dev/null | base64 -d || echo 'Run: make local-deploy-argocd')"
+	@echo ""
+	@echo "🔐 Vault UI:          http://localhost:8200"
+	@echo "   Token:             root"
+	@echo ""
+	@echo "💾 PostgreSQL:        localhost:5432"
+	@echo "   Database:          platform_dev"
+	@echo "   Username:          platform"
+	@echo "   Password:          dev_password_123"
+	@echo ""
+
+# Port-forward services
+local-forward:
+	@echo "Setting up port forwarding..."
+	@echo "ArgoCD:  https://localhost:8080"
+	@kubectl port-forward svc/argocd-server -n argocd 8080:443 >/dev/null 2>&1 &
+	@echo "Vault:   http://localhost:8200"
+	@kubectl port-forward svc/vault-ui -n platform-system 8200:8200 >/dev/null 2>&1 &
+	@echo "✅ Port forwarding active (run in background)"
+
+# View logs
+local-logs:
+	@echo "Recent logs from all services:"
+	@echo ""
+	@echo "━━━ Sample Service ━━━"
+	@kubectl logs -l app=sample-service -n platform-apps --tail=10 2>/dev/null || echo "Not deployed"
+	@echo ""
+	@echo "━━━ ArgoCD ━━━"
+	@kubectl logs -l app.kubernetes.io/name=argocd-server -n argocd --tail=10 2>/dev/null || echo "Not deployed"
+	@echo ""
+	@echo "━━━ Vault ━━━"
+	@kubectl logs vault-0 -n platform-system --tail=10 2>/dev/null || echo "Not deployed"
+	@echo ""
+	@echo "━━━ PostgreSQL ━━━"
+	@kubectl logs postgres-0 -n platform-data --tail=10 2>/dev/null || echo "Not deployed"
+
+# PostgreSQL shell
+local-shell-db:
+	@echo "Connecting to PostgreSQL..."
+	@kubectl exec -it postgres-0 -n platform-data -- psql -U platform -d platform_dev
+
+# Vault shell
+local-shell-vault:
+	@echo "Connecting to Vault..."
+	@kubectl exec -it vault-0 -n platform-system -- sh
+
+# Clean up
+local-clean:
+	@echo "🧹 Cleaning up resources..."
+	@kubectl delete namespace platform-apps --ignore-not-found=true
+	@kubectl delete namespace platform-data --ignore-not-found=true
+	@kubectl delete namespace platform-monitoring --ignore-not-found=true
+	@kubectl delete namespace argocd --ignore-not-found=true
+	@helm uninstall vault -n platform-system --ignore-not-found >/dev/null 2>&1 || true
+	@kubectl delete namespace platform-system --ignore-not-found=true
+	@echo "✅ Cleanup complete"
+
+# Stop kind cluster
+local-stop-kind:
+	@echo "Stopping kind cluster..."
+	@kind delete cluster --name AtomicAds-local
+	@echo "✅ kind cluster deleted"
+
+.DEFAULT_GOAL := help

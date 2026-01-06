@@ -1,0 +1,64 @@
+.PHONY: help deploy-all deploy-ns deploy-argocd deploy-vault deploy-db deploy-sample test status clean
+
+help:
+	@echo "Bare Metal Kubernetes Commands:"
+	@echo "  make deploy-all     - Deploy everything"
+	@echo "  make test          - Run tests"
+	@echo "  make status        - Check status"
+	@echo "  make clean         - Clean up"
+
+deploy-ns:
+	@echo "📦 Creating namespaces..."
+	@kubectl apply -f local-k8s/namespaces.yaml --validate=false
+	@echo "✅ Namespaces created"
+
+deploy-argocd:
+	@echo "🔄 Deploying ArgoCD..."
+	@kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
+	@kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml --validate=false
+	@echo "⏳ Waiting for ArgoCD..."
+	@kubectl wait --for=condition=available --timeout=300s deployment/argocd-server -n argocd 2>/dev/null || true
+	@echo "✅ ArgoCD deployed"
+
+deploy-vault:
+	@echo "🔐 Deploying Vault..."
+	@helm repo add hashicorp https://helm.releases.hashicorp.com >/dev/null 2>&1 || true
+	@helm repo update >/dev/null 2>&1
+	@helm install vault hashicorp/vault --namespace platform-system --values local-k8s/vault-values.yaml --wait --timeout 5m
+	@echo "✅ Vault deployed"
+
+deploy-db:
+	@echo "💾 Deploying PostgreSQL..."
+	@kubectl apply -f local-k8s/postgres.yaml --validate=false
+	@echo "⏳ Waiting for PostgreSQL..."
+	@kubectl wait --for=condition=ready pod -l app=postgres -n platform-data --timeout=120s 2>/dev/null || true
+	@echo "✅ PostgreSQL deployed"
+
+deploy-sample:
+	@echo "🎨 Deploying sample service..."
+	@kubectl apply -f local-k8s/sample-service/ --validate=false
+	@echo "⏳ Waiting for sample service..."
+	@kubectl wait --for=condition=available --timeout=120s deployment/sample-service -n platform-apps 2>/dev/null || true
+	@echo "✅ Sample service deployed"
+
+deploy-all: deploy-ns deploy-argocd deploy-vault deploy-db deploy-sample
+	@echo ""
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "  ✅ DEPLOYMENT COMPLETE"
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+test:
+	@echo "Testing..."
+	@kubectl get namespace platform-system >/dev/null 2>&1 && echo "✅ platform-system" || echo "❌ platform-system"
+	@kubectl get pods -n argocd 2>/dev/null | grep -q Running && echo "✅ ArgoCD" || echo "⏳ ArgoCD starting..."
+
+status:
+	@kubectl get nodes
+	@kubectl get pods --all-namespaces | grep -E "platform|argocd"
+
+clean:
+	@kubectl delete namespace platform-apps platform-data platform-monitoring argocd --ignore-not-found=true
+	@helm uninstall vault -n platform-system 2>/dev/null || true
+	@kubectl delete namespace platform-system --ignore-not-found=true
+
+.DEFAULT_GOAL := help

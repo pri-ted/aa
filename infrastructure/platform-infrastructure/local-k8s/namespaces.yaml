@@ -1,0 +1,32 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: platform-system
+  labels:
+    name: platform-system
+    tier: system
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: platform-apps
+  labels:
+    name: platform-apps
+    tier: application
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: platform-data
+  labels:
+    name: platform-data
+    tier: data
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: platform-monitoring
+  labels:
+    name: platform-monitoring
+    tier: monitoring
