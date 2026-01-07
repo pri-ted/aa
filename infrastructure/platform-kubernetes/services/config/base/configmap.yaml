@@ -1,0 +1,51 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: service-config-config
+  namespace: platform-apps
+  labels:
+    app: service-config
+data:
+  app.name: "service-config"
+  app.env: "production"
+  log.level: "info"
+  log.format: "json"
+  
+  grpc.port: "9091"
+  http.port: "8001"
+  server.timeout: "30s"
+  
+  db.host: "postgres.platform-data.svc.cluster.local"
+  db.port: "5432"
+  db.name: "platform"
+  db.sslMode: "require"
+  db.maxOpenConns: "25"
+  
+  redis.host: "redis.platform-data.svc.cluster.local"
+  redis.port: "6379"
+  redis.db: "0"
+  
+  kafka.brokers: "kafka.platform-data.svc.cluster.local:9092"
+  kafka.consumerGroup: "service-config"
+  
+  clickhouse.host: "clickhouse.platform-data.svc.cluster.local"
+  clickhouse.port: "9000"
+  clickhouse.database: "platform"
+  
+  otel.enabled: "true"
+  otel.endpoint: "tempo.platform-monitoring.svc.cluster.local:4317"
+  otel.serviceName: "service-config"
+  otel.samplingRate: "0.1"
+  
+  metrics.enabled: "true"
+  metrics.path: "/metrics"
+  
+  circuitBreaker.enabled: "true"
+  circuitBreaker.threshold: "5"
+  circuitBreaker.timeout: "30s"
+  
+  rateLimit.enabled: "true"
+  rateLimit.requestsPerSecond: "100"
+  
+  features.caching: "true"
+  features.tracing: "true"

@@ -1,0 +1,12 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: service-notification-pdb
+  namespace: platform-apps
+  labels:
+    app: service-notification
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: service-notification
