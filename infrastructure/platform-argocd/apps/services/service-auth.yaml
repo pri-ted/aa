@@ -6,18 +6,23 @@ metadata:
   labels:
     app.kubernetes.io/name: service-auth
     app.kubernetes.io/part-of: AtomicAds
-    tier: application
+    tier: services
   annotations:
     argocd.argoproj.io/sync-wave: "2"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
 spec:
   project: platform-services
+  
   source:
     repoURL: https://github.com/AtomicAds/platform-kubernetes
     targetRevision: main
     path: services/auth/overlays/dev
+  
   destination:
     server: https://kubernetes.default.svc
     namespace: platform-apps
+  
   syncPolicy:
     automated:
       prune: true
@@ -30,3 +35,9 @@ spec:
         duration: 5s
         factor: 2
         maxDuration: 3m
+  
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas

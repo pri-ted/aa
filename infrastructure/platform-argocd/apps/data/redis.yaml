@@ -9,33 +9,29 @@ metadata:
     tier: data
   annotations:
     argocd.argoproj.io/sync-wave: "1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
 spec:
   project: platform-data
+  
   source:
-    repoURL: https://charts.bitnami.com/bitnami
-    chart: redis
-    targetRevision: 18.0.0
-    helm:
-      releaseName: redis
-      values: |
-        architecture: standalone
-        auth:
-          enabled: true
-          password: "redis_dev_password_change_in_prod"
-        master:
-          persistence:
-            size: 10Gi
-          resources:
-            requests:
-              memory: 256Mi
-              cpu: 250m
-            limits:
-              memory: 1Gi
-              cpu: 1000m
+    repoURL: https://github.com/AtomicAds/platform-kubernetes
+    targetRevision: main
+    path: databases/redis/overlays/dev
+  
   destination:
     server: https://kubernetes.default.svc
     namespace: platform-data
+  
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

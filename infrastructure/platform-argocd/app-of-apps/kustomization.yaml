@@ -7,17 +7,17 @@ resources:
   # Projects
   - ../projects/projects.yaml
   
-  # Infrastructure Apps (Wave 0)
+  # Infrastructure (Wave 0)
   - ../apps/infrastructure/vault.yaml
   - ../apps/infrastructure/prometheus.yaml
   - ../apps/infrastructure/grafana.yaml
   
-  # Data Apps (Wave 1)
+  # Data Layer (Wave 1)
   - ../apps/data/postgresql.yaml
   - ../apps/data/clickhouse.yaml
   - ../apps/data/redis.yaml
   
-  # Service Apps (Wave 2)
+  # Services (Wave 2)
   - ../apps/services/service-auth.yaml
   - ../apps/services/service-config.yaml
   - ../apps/services/service-connector.yaml

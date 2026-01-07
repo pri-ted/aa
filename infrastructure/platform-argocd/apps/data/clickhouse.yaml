@@ -9,16 +9,29 @@ metadata:
     tier: data
   annotations:
     argocd.argoproj.io/sync-wave: "1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
 spec:
   project: platform-data
+  
   source:
     repoURL: https://github.com/AtomicAds/platform-kubernetes
     targetRevision: main
-    path: databases/clickhouse
+    path: databases/clickhouse/overlays/dev
+  
   destination:
     server: https://kubernetes.default.svc
     namespace: platform-data
+  
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
