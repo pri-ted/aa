@@ -1,230 +1,258 @@
 .PHONY: help
-.DEFAULT_GOAL := help
+help: ## Show this help message
+	@echo "════════════════════════════════════════════════════════════════"
+	@echo "  AtomicAds Campaign Lifecycle Platform - Infrastructure"
+	@echo "════════════════════════════════════════════════════════════════"
+	@echo ""
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
+		awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
+	@echo ""
 
-# Colors for output
-CYAN := \033[0;36m
-GREEN := \033[0;32m
-YELLOW := \033[0;33m
-RED := \033[0;31m
-RESET := \033[0m
+# ============================================================================
+# LOCAL DEVELOPMENT TARGETS
+# ============================================================================
 
-##@ General
+.PHONY: quickstart-local
+quickstart-local: ## 🚀 ONE-COMMAND LOCAL DEPLOYMENT - Complete platform on local K8s
+	@echo "════════════════════════════════════════════════════════════════"
+	@echo "🚀 AtomicAds Platform - Local Quickstart"
+	@echo "════════════════════════════════════════════════════════════════"
+	@echo ""
+	@$(MAKE) preflight-local
+	@$(MAKE) setup-local-cluster
+	@$(MAKE) bootstrap-argocd
+	@$(MAKE) deploy-platform-local
+	@$(MAKE) verify-platform
+	@$(MAKE) show-endpoints
+	@echo ""
+	@echo "════════════════════════════════════════════════════════════════"
+	@echo "✅ Platform Ready!"
+	@echo "════════════════════════════════════════════════════════════════"
 
-help: ## Display this help message
-	@awk 'BEGIN {FS = ":.*##"; printf "\n$(CYAN)Usage:$(RESET)\n  make $(GREEN)<target>$(RESET)\n"} /^[a-zA-Z_0-9-]+:.*?##/ { printf "  $(GREEN)%-25s$(RESET) %s\n", $$1, $$2 } /^##@/ { printf "\n$(CYAN)%s$(RESET)\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
+.PHONY: preflight-local
+preflight-local: ## ✓ Verify prerequisites for local deployment
+	@echo "→ Checking prerequisites..."
+	@command -v docker >/dev/null 2>&1 || (echo "❌ Docker not found. Install Docker Desktop" && exit 1)
+	@command -v kubectl >/dev/null 2>&1 || (echo "❌ kubectl not found. Run: brew install kubectl" && exit 1)
+	@command -v kustomize >/dev/null 2>&1 || (echo "❌ kustomize not found. Run: brew install kustomize" && exit 1)
+	@command -v helm >/dev/null 2>&1 || (echo "❌ helm not found. Run: brew install helm" && exit 1)
+	@docker info >/dev/null 2>&1 || (echo "❌ Docker daemon not running. Start Docker Desktop" && exit 1)
+	@kubectl cluster-info >/dev/null 2>&1 || (echo "❌ Kubernetes cluster not accessible. Enable Kubernetes in Docker Desktop" && exit 1)
+	@if [ -z "$$GITHUB_TOKEN" ]; then echo "⚠️  WARNING: GITHUB_TOKEN not set. ArgoCD may fail to sync private repos."; fi
+	@echo "✅ All prerequisites met"
 
-check-tools: ## Check required tools are installed
-	@echo "$(CYAN)Checking required tools...$(RESET)"
-	@command -v terraform >/dev/null 2>&1 || { echo "$(RED)terraform not found$(RESET)"; exit 1; }
-	@command -v kubectl >/dev/null 2>&1 || { echo "$(RED)kubectl not found$(RESET)"; exit 1; }
-	@command -v helm >/dev/null 2>&1 || { echo "$(RED)helm not found$(RESET)"; exit 1; }
-	@command -v aws >/dev/null 2>&1 || echo "$(YELLOW)aws-cli not found (needed for AWS deployments)$(RESET)"
-	@command -v gcloud >/dev/null 2>&1 || echo "$(YELLOW)gcloud not found (needed for GCP deployments)$(RESET)"
-	@echo "$(GREEN)✓ All required tools found$(RESET)"
+.PHONY: setup-local-cluster
+setup-local-cluster: ## 🏗️  Configure local Kubernetes cluster
+	@echo "→ Setting up local Kubernetes cluster..."
+	@kubectl config use-context docker-desktop || kubectl config use-context k3s-default || (echo "❌ No local cluster found" && exit 1)
+	@kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
+	@kubectl create namespace atomicads-local --dry-run=client -o yaml | kubectl apply -f -
+	@echo "✅ Local cluster configured"
 
-##@ AWS Development
+.PHONY: bootstrap-argocd
+bootstrap-argocd: ## 📦 Install and configure ArgoCD
+	@echo "→ Installing ArgoCD..."
+	@./scripts/bootstrap-argocd.sh
+	@echo "✅ ArgoCD installed and configured"
 
-deploy-aws-dev: check-tools ## Deploy complete AWS dev environment
-	@echo "$(CYAN)Deploying AWS dev environment...$(RESET)"
-	@cd terraform/providers/aws/dev && terraform init
-	@cd terraform/providers/aws/dev && terraform apply -auto-approve
-	@$(MAKE) bootstrap-argocd-aws-dev
-	@echo "$(GREEN)✓ AWS dev environment deployed$(RESET)"
+.PHONY: deploy-platform-local
+deploy-platform-local: ## 🚢 Deploy all platform components via ArgoCD
+	@echo "→ Deploying platform components..."
+	@kubectl apply -k ../platform-kubernetes/overlays/local/ 2>/dev/null || echo "⚠️  Local overlay not found, will create it"
+	@echo "✅ Platform deployment initiated"
 
-plan-aws-dev: check-tools ## Plan AWS dev infrastructure changes
-	@cd terraform/providers/aws/dev && terraform init
+.PHONY: verify-platform
+verify-platform: ## 🔍 Verify all components are healthy
+	@echo "→ Verifying platform health..."
+	@./scripts/verify-platform.sh
+
+.PHONY: show-endpoints
+show-endpoints: ## 📍 Display service access endpoints
+	@echo ""
+	@echo "════════════════════════════════════════════════════════════════"
+	@echo "📍 Service Endpoints"
+	@echo "════════════════════════════════════════════════════════════════"
+	@echo ""
+	@./scripts/show-endpoints.sh
+
+.PHONY: logs-local
+logs-local: ## 📋 Stream logs from all platform components
+	@echo "→ Streaming platform logs (Ctrl+C to stop)..."
+	@kubectl logs -f -l app.kubernetes.io/part-of=atomicads -n atomicads-local --all-containers=true --max-log-requests=10 2>/dev/null || \
+		kubectl logs -f -l platform=atomicads -n atomicads-local --all-containers=true --max-log-requests=10
+
+.PHONY: teardown-local
+teardown-local: ## 🗑️  Complete cleanup of local environment
+	@echo "⚠️  This will DELETE all local platform resources!"
+	@read -p "Continue? (yes/no): " confirm && [ "$$confirm" = "yes" ] || (echo "Aborted" && exit 1)
+	@echo "→ Tearing down local environment..."
+	@kubectl delete namespace atomicads-local --ignore-not-found=true
+	@kubectl delete namespace argocd --ignore-not-found=true
+	@echo "✅ Local environment cleaned up"
+
+# ============================================================================
+# AWS EKS DEPLOYMENT TARGETS
+# ============================================================================
+
+.PHONY: quickstart-aws-dev
+quickstart-aws-dev: ## 🌩️  Deploy to AWS EKS (dev environment)
+	@echo "→ Deploying to AWS EKS (dev)..."
+	@cd terraform/providers/aws/dev && terraform init && terraform apply -auto-approve
+	@$(MAKE) configure-kubectl-aws-dev
+	@$(MAKE) bootstrap-argocd
+	@echo "✅ AWS dev environment ready"
+
+.PHONY: configure-kubectl-aws-dev
+configure-kubectl-aws-dev: ## ⚙️  Configure kubectl for AWS EKS dev
+	@echo "→ Configuring kubectl for AWS EKS..."
+	@aws eks update-kubeconfig --region us-east-1 --name platform-dev
+
+.PHONY: terraform-plan-dev
+terraform-plan-dev: ## 📋 Show Terraform plan for dev
 	@cd terraform/providers/aws/dev && terraform plan
 
-destroy-aws-dev: ## Destroy AWS dev environment (WARNING: destructive)
-	@echo "$(RED)WARNING: This will destroy the entire dev environment!$(RESET)"
-	@echo "Press Ctrl+C to cancel, or wait 10 seconds to continue..."
-	@sleep 10
+.PHONY: terraform-apply-dev
+terraform-apply-dev: ## 🚀 Apply Terraform for dev
+	@cd terraform/providers/aws/dev && terraform apply
+
+.PHONY: terraform-destroy-dev
+terraform-destroy-dev: ## 💥 Destroy AWS dev infrastructure
+	@echo "⚠️  This will DESTROY the AWS dev environment!"
+	@read -p "Type 'destroy' to confirm: " confirm && [ "$$confirm" = "destroy" ] || exit 1
 	@cd terraform/providers/aws/dev && terraform destroy
 
-get-kubeconfig-aws-dev: ## Update kubeconfig for AWS dev cluster
-	@aws eks update-kubeconfig --name platform-dev --region us-east-1
-	@echo "$(GREEN)✓ Kubeconfig updated$(RESET)"
+# ============================================================================
+# ARGOCD MANAGEMENT
+# ============================================================================
 
-##@ AWS Staging
+.PHONY: argocd-ui
+argocd-ui: ## 🌐 Open ArgoCD UI in browser
+	@echo "→ Opening ArgoCD UI..."
+	@echo "Username: admin"
+	@echo "Password: $$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d)"
+	@kubectl port-forward svc/argocd-server -n argocd 8080:443 >/dev/null 2>&1 &
+	@sleep 2
+	@open https://localhost:8080 || echo "Open https://localhost:8080 in your browser"
 
-deploy-aws-staging: check-tools ## Deploy AWS staging environment
-	@echo "$(CYAN)Deploying AWS staging environment...$(RESET)"
-	@cd terraform/providers/aws/staging && terraform init
-	@cd terraform/providers/aws/staging && terraform apply -auto-approve
-	@$(MAKE) bootstrap-argocd-aws-staging
-	@echo "$(GREEN)✓ AWS staging environment deployed$(RESET)"
+.PHONY: argocd-password
+argocd-password: ## 🔑 Get ArgoCD admin password
+	@echo "ArgoCD Admin Password:"
+	@kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
+	@echo ""
 
-plan-aws-staging: check-tools ## Plan AWS staging infrastructure changes
-	@cd terraform/providers/aws/staging && terraform init
-	@cd terraform/providers/aws/staging && terraform plan
+.PHONY: argocd-sync-all
+argocd-sync-all: ## 🔄 Sync all ArgoCD applications
+	@echo "→ Syncing all applications..."
+	@kubectl get applications -n argocd -o name | xargs -I {} kubectl patch {} -n argocd --type merge -p '{"operation":{"sync":{}}}'
+	@echo "✅ Sync triggered for all applications"
 
-get-kubeconfig-aws-staging: ## Update kubeconfig for AWS staging cluster
-	@aws eks update-kubeconfig --name platform-staging --region us-east-1
+# ============================================================================
+# DATABASE MANAGEMENT
+# ============================================================================
 
-##@ AWS Production
+.PHONY: db-migrate
+db-migrate: ## 📦 Run database migrations
+	@echo "→ Running database migrations..."
+	@kubectl exec -n atomicads-local -it deployment/postgres -- psql -U platform -d platform_dev -f /migrations/001_init_schema.sql
+	@echo "✅ Migrations complete"
 
-deploy-aws-prod: check-tools ## Deploy AWS production environment
-	@echo "$(RED)Deploying PRODUCTION environment$(RESET)"
-	@echo "$(YELLOW)Manual approval required. Type 'yes' to continue:$(RESET)"
-	@read -p "" confirm && [ "$$confirm" = "yes" ]
-	@cd terraform/providers/aws/production && terraform init
-	@cd terraform/providers/aws/production && terraform apply
-	@$(MAKE) bootstrap-argocd-aws-prod
-	@echo "$(GREEN)✓ AWS production environment deployed$(RESET)"
+.PHONY: db-seed
+db-seed: ## 🌱 Load seed data
+	@echo "→ Loading seed data..."
+	@kubectl exec -n atomicads-local -it deployment/postgres -- psql -U platform -d platform_dev -f /migrations/002_seed_data.sql
+	@echo "✅ Seed data loaded"
 
-plan-aws-prod: check-tools ## Plan AWS production infrastructure changes
-	@cd terraform/providers/aws/production && terraform init
-	@cd terraform/providers/aws/production && terraform plan
+.PHONY: db-reset
+db-reset: ## 🔄 Reset database (drop and recreate)
+	@echo "⚠️  This will DELETE all data!"
+	@read -p "Continue? (yes/no): " confirm && [ "$$confirm" = "yes" ] || exit 1
+	@kubectl exec -n atomicads-local -it deployment/postgres -- psql -U platform -d postgres -c "DROP DATABASE IF EXISTS platform_dev;"
+	@kubectl exec -n atomicads-local -it deployment/postgres -- psql -U platform -d postgres -c "CREATE DATABASE platform_dev;"
+	@$(MAKE) db-migrate
+	@$(MAKE) db-seed
+	@echo "✅ Database reset complete"
 
-get-kubeconfig-aws-prod: ## Update kubeconfig for AWS production cluster
-	@aws eks update-kubeconfig --name platform-prod --region us-east-1
+.PHONY: db-shell-postgres
+db-shell-postgres: ## 🐘 Connect to PostgreSQL shell
+	@kubectl exec -n atomicads-local -it deployment/postgres -- psql -U platform -d platform_dev
 
-##@ GCP (Future)
+.PHONY: db-shell-clickhouse
+db-shell-clickhouse: ## 🏠 Connect to ClickHouse shell
+	@kubectl exec -n atomicads-local -it deployment/clickhouse -- clickhouse-client
 
-deploy-gcp-dev: check-tools ## Deploy GCP dev environment
-	@echo "$(YELLOW)GCP support coming in Phase 2$(RESET)"
-	@cd terraform/providers/gcp/dev && terraform init
-	@cd terraform/providers/gcp/dev && terraform apply
+.PHONY: db-shell-redis
+db-shell-redis: ## 🔴 Connect to Redis shell
+	@kubectl exec -n atomicads-local -it deployment/redis -- redis-cli
 
-##@ GitOps
+# ============================================================================
+# MONITORING & DEBUGGING
+# ============================================================================
 
-bootstrap-argocd-aws-dev: ## Bootstrap ArgoCD on AWS dev cluster
-	@echo "$(CYAN)Bootstrapping ArgoCD...$(RESET)"
-	@./scripts/bootstrap-argocd.sh dev
-	@echo "$(GREEN)✓ ArgoCD deployed$(RESET)"
-	@echo "$(CYAN)ArgoCD UI:$(RESET) https://argocd.dev.platform.internal"
-	@echo "$(CYAN)Username:$(RESET) admin"
-	@kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d && echo
+.PHONY: status
+status: ## 📊 Show platform status
+	@echo "════════════════════════════════════════════════════════════════"
+	@echo "Platform Status"
+	@echo "════════════════════════════════════════════════════════════════"
+	@echo ""
+	@echo "→ Namespaces:"
+	@kubectl get namespaces | grep -E "NAME|atomicads|argocd"
+	@echo ""
+	@echo "→ Pods (atomicads-local):"
+	@kubectl get pods -n atomicads-local
+	@echo ""
+	@echo "→ Services:"
+	@kubectl get svc -n atomicads-local
+	@echo ""
+	@echo "→ ArgoCD Applications:"
+	@kubectl get applications -n argocd 2>/dev/null || echo "ArgoCD not installed"
 
-bootstrap-argocd-aws-staging: ## Bootstrap ArgoCD on AWS staging cluster
-	@./scripts/bootstrap-argocd.sh staging
+.PHONY: grafana
+grafana: ## 📊 Open Grafana dashboards
+	@echo "→ Opening Grafana..."
+	@kubectl port-forward -n atomicads-local svc/grafana 3000:80 >/dev/null 2>&1 &
+	@sleep 2
+	@echo "Grafana: http://localhost:3000 (admin/admin)"
+	@open http://localhost:3000 || echo "Open http://localhost:3000 in your browser"
 
-bootstrap-argocd-aws-prod: ## Bootstrap ArgoCD on AWS production cluster
-	@./scripts/bootstrap-argocd.sh production
+.PHONY: prometheus
+prometheus: ## 📈 Open Prometheus UI
+	@echo "→ Opening Prometheus..."
+	@kubectl port-forward -n atomicads-local svc/prometheus 9090:9090 >/dev/null 2>&1 &
+	@sleep 2
+	@open http://localhost:9090 || echo "Open http://localhost:9090 in your browser"
 
-deploy-apps: ## Deploy all platform applications via ArgoCD
-	@echo "$(CYAN)Deploying platform applications...$(RESET)"
-	@kubectl apply -f argocd/app-of-apps/
-	@echo "$(GREEN)✓ Applications deployed$(RESET)"
+# ============================================================================
+# UTILITY TARGETS
+# ============================================================================
 
-sync-apps: ## Sync all ArgoCD applications
-	@argocd app sync -l app.kubernetes.io/instance=platform
+.PHONY: k9s
+k9s: ## 🐕 Launch k9s (Kubernetes CLI UI)
+	@command -v k9s >/dev/null 2>&1 || (echo "Install k9s: brew install k9s" && exit 1)
+	@k9s -n atomicads-local
 
-##@ Vault
+.PHONY: clean-pv
+clean-pv: ## 🧹 Clean persistent volumes
+	@kubectl delete pvc --all -n atomicads-local
+	@kubectl delete pv --all
 
-vault-init: ## Initialize HashiCorp Vault
-	@echo "$(CYAN)Initializing Vault...$(RESET)"
-	@./scripts/vault-init.sh
-	@echo "$(GREEN)✓ Vault initialized$(RESET)"
-	@echo "$(RED)IMPORTANT: Save the unseal keys and root token securely!$(RESET)"
+.PHONY: restart-pod
+restart-pod: ## 🔄 Restart a specific pod (Usage: make restart-pod POD=postgres)
+	@if [ -z "$(POD)" ]; then echo "Usage: make restart-pod POD=<pod-name>"; exit 1; fi
+	@kubectl delete pod -n atomicads-local -l app=$(POD)
+	@echo "✅ Pod $(POD) restarted"
 
-vault-unseal: ## Unseal Vault
-	@./scripts/vault-unseal.sh
+.PHONY: describe-pod
+describe-pod: ## 🔍 Describe a specific pod (Usage: make describe-pod POD=postgres)
+	@if [ -z "$(POD)" ]; then echo "Usage: make describe-pod POD=<pod-name>"; exit 1; fi
+	@kubectl describe pod -n atomicads-local -l app=$(POD)
 
-vault-status: ## Check Vault status
-	@kubectl exec -n platform-system vault-0 -- vault status
+.PHONY: port-forward
+port-forward: ## 🔌 Port forward to a service (Usage: make port-forward SVC=postgres PORT=5432)
+	@if [ -z "$(SVC)" ] || [ -z "$(PORT)" ]; then echo "Usage: make port-forward SVC=<service> PORT=<port>"; exit 1; fi
+	@kubectl port-forward -n atomicads-local svc/$(SVC) $(PORT):$(PORT)
 
-##@ Database
+# ============================================================================
+# DEFAULT TARGET
+# ============================================================================
 
-deploy-postgres-operator: ## Deploy PostgreSQL operator
-	@echo "$(CYAN)Deploying PostgreSQL operator...$(RESET)"
-	@kubectl apply -k kubernetes/platform-data/postgres-operator/
-	@echo "$(GREEN)✓ PostgreSQL operator deployed$(RESET)"
-
-deploy-clickhouse-operator: ## Deploy ClickHouse operator
-	@echo "$(CYAN)Deploying ClickHouse operator...$(RESET)"
-	@kubectl apply -k kubernetes/platform-data/clickhouse-operator/
-	@echo "$(GREEN)✓ ClickHouse operator deployed$(RESET)"
-
-deploy-redis-operator: ## Deploy Redis operator
-	@echo "$(CYAN)Deploying Redis operator...$(RESET)"
-	@kubectl apply -k kubernetes/platform-data/redis-operator/
-	@echo "$(GREEN)✓ Redis operator deployed$(RESET)"
-
-##@ Monitoring
-
-deploy-monitoring: ## Deploy monitoring stack (Prometheus, Grafana, Loki)
-	@echo "$(CYAN)Deploying monitoring stack...$(RESET)"
-	@kubectl apply -k kubernetes/platform-monitoring/
-	@echo "$(GREEN)✓ Monitoring stack deployed$(RESET)"
-	@echo "$(CYAN)Grafana:$(RESET) https://grafana.platform.internal"
-	@echo "$(CYAN)Prometheus:$(RESET) https://prometheus.platform.internal"
-
-port-forward-grafana: ## Port-forward Grafana to localhost:3000
-	@kubectl port-forward -n platform-monitoring svc/grafana 3000:80
-
-port-forward-prometheus: ## Port-forward Prometheus to localhost:9090
-	@kubectl port-forward -n platform-monitoring svc/prometheus 9090:9090
-
-##@ Validation
-
-validate-k8s: ## Validate all Kubernetes manifests
-	@echo "$(CYAN)Validating Kubernetes manifests...$(RESET)"
-	@find kubernetes -name "*.yaml" -o -name "*.yml" | xargs -I {} kubectl apply --dry-run=client -f {}
-	@echo "$(GREEN)✓ All manifests valid$(RESET)"
-
-validate-terraform: ## Validate Terraform configurations
-	@echo "$(CYAN)Validating Terraform...$(RESET)"
-	@cd terraform/providers/aws/dev && terraform validate
-	@echo "$(GREEN)✓ Terraform valid$(RESET)"
-
-lint-terraform: ## Lint Terraform code
-	@echo "$(CYAN)Linting Terraform...$(RESET)"
-	@terraform fmt -check -recursive terraform/
-
-format-terraform: ## Format Terraform code
-	@terraform fmt -recursive terraform/
-
-##@ Utilities
-
-clean: ## Clean temporary files and caches
-	@find . -type d -name ".terraform" -exec rm -rf {} + 2>/dev/null || true
-	@find . -type f -name "*.tfstate*" -delete 2>/dev/null || true
-	@find . -type f -name ".terraform.lock.hcl" -delete 2>/dev/null || true
-	@echo "$(GREEN)✓ Cleaned$(RESET)"
-
-logs-argocd: ## Show ArgoCD logs
-	@kubectl logs -n argocd -l app.kubernetes.io/name=argocd-server --tail=100 -f
-
-logs-vault: ## Show Vault logs
-	@kubectl logs -n platform-system -l app.kubernetes.io/name=vault --tail=100 -f
-
-shell-postgres: ## Get psql shell to PostgreSQL
-	@kubectl exec -it -n platform-data postgres-0 -- psql -U platform
-
-shell-clickhouse: ## Get clickhouse-client shell
-	@kubectl exec -it -n platform-data clickhouse-0 -- clickhouse-client
-
-shell-redis: ## Get redis-cli shell
-	@kubectl exec -it -n platform-data redis-0 -- redis-cli
-
-##@ Development
-
-local-dev: ## Start local development environment (Docker Compose)
-	@echo "$(CYAN)Starting local development environment...$(RESET)"
-	@docker-compose -f docker-compose.dev.yaml up -d
-	@echo "$(GREEN)✓ Local environment running$(RESET)"
-
-local-stop: ## Stop local development environment
-	@docker-compose -f docker-compose.dev.yaml down
-
-local-logs: ## Show logs from local development environment
-	@docker-compose -f docker-compose.dev.yaml logs -f
-
-##@ CI/CD
-
-ci-terraform-plan: ## CI: Run Terraform plan
-	@cd terraform/providers/aws/dev && terraform init -backend=true
-	@cd terraform/providers/aws/dev && terraform plan -out=tfplan
-
-ci-terraform-apply: ## CI: Apply Terraform plan
-	@cd terraform/providers/aws/dev && terraform apply tfplan
-
-##@ Documentation
-
-docs-serve: ## Serve documentation locally
-	@echo "$(CYAN)Serving documentation at http://localhost:8000$(RESET)"
-	@cd docs && python3 -m http.server 8000
-
-docs-architecture: ## Generate architecture diagrams
-	@./scripts/generate-diagrams.sh
+.DEFAULT_GOAL := help

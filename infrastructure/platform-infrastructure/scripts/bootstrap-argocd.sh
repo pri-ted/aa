@@ -1,117 +1,189 @@
 #!/bin/bash
 set -euo pipefail
 
-# Colors for output
-CYAN='\033[0;36m'
-GREEN='\033[0;32m'
-YELLOW='\033[0;33m'
-RED='\033[0;31m'
-RESET='\033[0m'
+# ============================================================================
+# ArgoCD Bootstrap Script
+# Installs ArgoCD and registers platform repositories for GitOps
+# ============================================================================
 
-ENVIRONMENT=${1:-dev}
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+GITHUB_ORG="${GITHUB_ORG:-AtomicAds}"
+GITHUB_TOKEN="${GITHUB_TOKEN:-}"
 
-echo -e "${CYAN}========================================${RESET}"
-echo -e "${CYAN}Bootstrapping ArgoCD - ${ENVIRONMENT}${RESET}"
-echo -e "${CYAN}========================================${RESET}\n"
+echo "════════════════════════════════════════════════════════════════"
+echo "🚀 Bootstrapping ArgoCD"
+echo "════════════════════════════════════════════════════════════════"
+echo ""
 
-# Validate environment
-if [[ ! "$ENVIRONMENT" =~ ^(dev|staging|production)$ ]]; then
-    echo -e "${RED}Error: Invalid environment. Must be dev, staging, or production${RESET}"
+# ============================================================================
+# Check Prerequisites
+# ============================================================================
+
+echo "→ Checking prerequisites..."
+
+if ! command -v kubectl &> /dev/null; then
+    echo "❌ kubectl not found. Please install kubectl first."
     exit 1
 fi
 
-# Check if kubectl is configured
 if ! kubectl cluster-info &> /dev/null; then
-    echo -e "${RED}Error: kubectl not configured. Please run 'make get-kubeconfig-aws-${ENVIRONMENT}' first${RESET}"
+    echo "❌ Cannot connect to Kubernetes cluster"
     exit 1
 fi
 
-echo -e "${CYAN}Step 1: Creating ArgoCD namespace${RESET}"
+echo "✅ Prerequisites met"
+echo ""
+
+# ============================================================================
+# Install ArgoCD
+# ============================================================================
+
+echo "→ Installing ArgoCD..."
+
+# Create namespace
 kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
 
-echo -e "${CYAN}Step 2: Installing ArgoCD${RESET}"
-kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+# Install ArgoCD (latest stable)
+ARGOCD_VERSION="v2.10.0"
+kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/${ARGOCD_VERSION}/manifests/install.yaml
 
-echo -e "${CYAN}Step 3: Waiting for ArgoCD to be ready${RESET}"
+echo "→ Waiting for ArgoCD to be ready (this may take 2-3 minutes)..."
+
+# Wait for ArgoCD server to be ready
 kubectl wait --for=condition=available --timeout=300s \
-    deployment/argocd-server \
-    deployment/argocd-repo-server \
-    deployment/argocd-application-controller \
-    -n argocd
+    deployment/argocd-server -n argocd
 
-echo -e "${CYAN}Step 4: Patching ArgoCD server for LoadBalancer${RESET}"
-if [ "$ENVIRONMENT" == "production" ]; then
-    # Production uses LoadBalancer
-    kubectl patch svc argocd-server -n argocd -p '{"spec": {"type": "LoadBalancer"}}'
+echo "✅ ArgoCD installed successfully"
+echo ""
+
+# ============================================================================
+# Configure ArgoCD
+# ============================================================================
+
+echo "→ Configuring ArgoCD..."
+
+# Patch ArgoCD to be insecure (for local development)
+kubectl patch configmap argocd-cmd-params-cm -n argocd \
+    --type merge \
+    -p '{"data":{"server.insecure":"true"}}'
+
+# Restart ArgoCD server to apply changes
+kubectl rollout restart deployment/argocd-server -n argocd
+kubectl rollout status deployment/argocd-server -n argocd --timeout=120s
+
+echo "✅ ArgoCD configured"
+echo ""
+
+# ============================================================================
+# Register Platform Repositories
+# ============================================================================
+
+echo "→ Registering platform repositories..."
+
+# Only setup GitHub credentials if token is provided
+if [ -n "$GITHUB_TOKEN" ]; then
+    echo "→ Setting up GitHub credentials..."
+    
+    # Create secret for GitHub access
+    kubectl create secret generic github-creds \
+        --from-literal=username=git \
+        --from-literal=password="$GITHUB_TOKEN" \
+        --namespace=argocd \
+        --dry-run=client -o yaml | kubectl apply -f -
+    
+    # Register platform-kubernetes repository
+    kubectl apply -f - <<EOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: platform-kubernetes-repo
+  namespace: argocd
+  labels:
+    argocd.argoproj.io/secret-type: repository
+stringData:
+  type: git
+  url: https://github.com/${GITHUB_ORG}/platform-kubernetes.git
+  password: ${GITHUB_TOKEN}
+  username: git
+EOF
+
+    # Register platform-argocd repository
+    kubectl apply -f - <<EOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: platform-argocd-repo
+  namespace: argocd
+  labels:
+    argocd.argoproj.io/secret-type: repository
+stringData:
+  type: git
+  url: https://github.com/${GITHUB_ORG}/platform-argocd.git
+  password: ${GITHUB_TOKEN}
+  username: git
+EOF
+
+    echo "✅ GitHub repositories registered"
 else
-    # Dev/Staging use NodePort
-    kubectl patch svc argocd-server -n argocd -p '{"spec": {"type": "NodePort"}}'
+    echo "⚠️  GITHUB_TOKEN not set - repositories will be accessed as public"
+    echo "   If your repos are private, set GITHUB_TOKEN environment variable"
 fi
 
-echo -e "${CYAN}Step 5: Configuring ArgoCD${RESET}"
-# Disable TLS for internal access (behind ALB)
-kubectl patch configmap argocd-cmd-params-cm -n argocd --type merge -p '{"data": {"server.insecure": "true"}}'
+echo ""
 
-# Enable anonymous read-only access for monitoring
-kubectl patch configmap argocd-cm -n argocd --type merge -p '{"data": {"users.anonymous.enabled": "true"}}'
+# ============================================================================
+# Deploy ArgoCD Projects
+# ============================================================================
 
-# Configure resource tracking
-kubectl patch configmap argocd-cm -n argocd --type merge -p '{"data": {"application.resourceTrackingMethod": "annotation+label"}}'
+echo "→ Creating ArgoCD Projects..."
 
-echo -e "${CYAN}Step 6: Restarting ArgoCD server to apply changes${RESET}"
-kubectl rollout restart deployment argocd-server -n argocd
-kubectl rollout status deployment argocd-server -n argocd
-
-echo -e "${CYAN}Step 7: Retrieving initial admin password${RESET}"
-ARGOCD_PASSWORD=$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d)
-
-echo -e "${CYAN}Step 8: Installing ArgoCD CLI${RESET}"
-if ! command -v argocd &> /dev/null; then
-    echo -e "${YELLOW}ArgoCD CLI not found. Installing...${RESET}"
-    curl -sSL -o /usr/local/bin/argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
-    chmod +x /usr/local/bin/argocd
+# Check if platform-argocd repo exists locally
+if [ -d "${SCRIPT_DIR}/../../platform-argocd" ]; then
+    ARGOCD_REPO_PATH="${SCRIPT_DIR}/../../platform-argocd"
 else
-    echo -e "${GREEN}ArgoCD CLI already installed${RESET}"
+    echo "⚠️  platform-argocd repository not found locally"
+    echo "   Skipping project creation - deploy manually from platform-argocd repo"
+    ARGOCD_REPO_PATH=""
 fi
 
-# Get ArgoCD server endpoint
-if [ "$ENVIRONMENT" == "production" ]; then
-    ARGOCD_SERVER=$(kubectl get svc argocd-server -n argocd -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
-    echo -e "${CYAN}Waiting for LoadBalancer to be ready...${RESET}"
-    while [ -z "$ARGOCD_SERVER" ]; do
-        sleep 5
-        ARGOCD_SERVER=$(kubectl get svc argocd-server -n argocd -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
-    done
+if [ -n "$ARGOCD_REPO_PATH" ] && [ -f "$ARGOCD_REPO_PATH/projects/projects.yaml" ]; then
+    kubectl apply -f "$ARGOCD_REPO_PATH/projects/projects.yaml"
+    echo "✅ ArgoCD Projects created"
 else
-    # For dev/staging, use port-forward
-    ARGOCD_SERVER="localhost:8080"
-    echo -e "${YELLOW}Note: For dev/staging, you'll need to port-forward:${RESET}"
-    echo -e "${YELLOW}  kubectl port-forward svc/argocd-server -n argocd 8080:443${RESET}"
+    echo "⚠️  Projects not applied - file not found"
 fi
 
-echo -e "\n${GREEN}========================================${RESET}"
-echo -e "${GREEN}ArgoCD Bootstrap Complete!${RESET}"
-echo -e "${GREEN}========================================${RESET}\n"
+echo ""
 
-echo -e "${CYAN}Access Information:${RESET}"
-echo -e "  ${GREEN}URL:${RESET}      https://${ARGOCD_SERVER}"
-echo -e "  ${GREEN}Username:${RESET} admin"
-echo -e "  ${GREEN}Password:${RESET} ${ARGOCD_PASSWORD}"
+# ============================================================================
+# Deploy App-of-Apps (Optional)
+# ============================================================================
 
-echo -e "\n${CYAN}Next Steps:${RESET}"
-echo -e "1. ${GREEN}Login to ArgoCD CLI:${RESET}"
-if [ "$ENVIRONMENT" == "production" ]; then
-    echo -e "   argocd login ${ARGOCD_SERVER} --username admin --password '${ARGOCD_PASSWORD}'"
-else
-    echo -e "   kubectl port-forward svc/argocd-server -n argocd 8080:443 &"
-    echo -e "   argocd login localhost:8080 --username admin --password '${ARGOCD_PASSWORD}' --insecure"
-fi
+# Uncomment this section when you're ready to auto-deploy the platform
+# echo "→ Deploying App-of-Apps..."
+# if [ -n "$ARGOCD_REPO_PATH" ] && [ -f "$ARGOCD_REPO_PATH/app-of-apps/root.yaml" ]; then
+#     kubectl apply -f "$ARGOCD_REPO_PATH/app-of-apps/root.yaml"
+#     echo "✅ App-of-Apps deployed"
+# fi
 
-echo -e "\n2. ${GREEN}Change the admin password:${RESET}"
-echo -e "   argocd account update-password"
+# ============================================================================
+# Display Access Information
+# ============================================================================
 
-echo -e "\n3. ${GREEN}Deploy platform applications:${RESET}"
-echo -e "   make deploy-apps"
-
-echo -e "\n${YELLOW}IMPORTANT: Save the password above securely!${RESET}"
-echo -e "${YELLOW}The initial admin secret will be deleted after first login.${RESET}\n"
+echo "════════════════════════════════════════════════════════════════"
+echo "✅ ArgoCD Bootstrap Complete!"
+echo "════════════════════════════════════════════════════════════════"
+echo ""
+echo "📍 Access ArgoCD:"
+echo ""
+echo "   URL:      https://localhost:8080"
+echo "   Username: admin"
+echo "   Password: \$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath=\"{.data.password}\" | base64 -d)"
+echo ""
+echo "🔌 To access ArgoCD UI, run:"
+echo "   kubectl port-forward svc/argocd-server -n argocd 8080:443"
+echo ""
+echo "🔑 To get admin password, run:"
+echo "   kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath=\"{.data.password}\" | base64 -d && echo"
+echo ""
+echo "════════════════════════════════════════════════════════════════"
