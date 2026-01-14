@@ -1,0 +1,42 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: platform-apps
+
+bases:
+  - ../../base
+
+images:
+  - name: ghcr.io/atomicads/service-silver
+    newTag: latest
+
+replicas:
+  - name: service-silver
+    count: 1
+
+patches:
+  - patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: "64Mi"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: "50m"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: "256Mi"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/cpu
+        value: "250m"
+    target:
+      kind: Deployment
+      name: service-silver
+
+configMapGenerator:
+  - name: service-silver-config
+    behavior: merge
+    literals:
+      - app.env=development
+      - log.level=debug
+      - otel.samplingRate=1.0
+      - features.profiling=true

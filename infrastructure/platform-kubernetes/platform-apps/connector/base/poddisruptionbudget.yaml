@@ -1,0 +1,12 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: service-connector-pdb
+  namespace: platform-apps
+  labels:
+    app: service-connector
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: service-connector

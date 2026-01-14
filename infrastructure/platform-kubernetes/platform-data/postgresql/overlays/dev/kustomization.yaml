@@ -1,0 +1,23 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+patches:
+  - target:
+      kind: postgresql
+      name: atomicads-postgres
+    patch: |-
+      - op: replace
+        path: /spec/numberOfInstances
+        value: 1
+      - op: replace
+        path: /spec/volume/size
+        value: "50Gi"
+      - op: replace
+        path: /spec/resources/requests/memory
+        value: "2Gi"
+      - op: replace
+        path: /spec/resources/limits/memory
+        value: "4Gi"
+commonLabels:
+  environment: dev

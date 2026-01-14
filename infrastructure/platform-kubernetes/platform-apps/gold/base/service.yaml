@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: service-gold
+  namespace: platform-apps
+  labels:
+    app: service-gold
+    service: gold
+spec:
+  type: ClusterIP
+  sessionAffinity: None
+  ports:
+    - name: grpc
+      port: 9096
+      targetPort: grpc
+      protocol: TCP
+    - name: http
+      port: 8006
+      targetPort: http
+      protocol: TCP
+  selector:
+    app: service-gold

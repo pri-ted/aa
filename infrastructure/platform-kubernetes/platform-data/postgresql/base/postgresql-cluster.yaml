@@ -1,0 +1,38 @@
+apiVersion: "acid.zalan.do/v1"
+kind: postgresql
+metadata:
+  name: atomicads-postgres
+spec:
+  teamId: "atomicads"
+  volume:
+    size: 100Gi
+    storageClass: gp3
+  numberOfInstances: 3
+  users:
+    platform:
+      - superuser
+      - createdb
+  databases:
+    platform_db: platform
+  postgresql:
+    version: "16"
+    parameters:
+      shared_buffers: "2GB"
+      max_connections: "200"
+      work_mem: "16MB"
+  resources:
+    requests:
+      cpu: "2"
+      memory: "4Gi"
+    limits:
+      cpu: "4"
+      memory: "8Gi"
+  patroni:
+    initdb:
+      encoding: "UTF8"
+      locale: "en_US.UTF-8"
+    pg_hba:
+      - hostssl all all 0.0.0.0/0 md5
+      - host all all 0.0.0.0/0 md5
+  enableConnectionPooler: true
+  enableReplicaConnectionPooler: true

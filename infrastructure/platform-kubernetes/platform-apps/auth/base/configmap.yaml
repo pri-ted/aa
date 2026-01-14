@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: service-auth-config
+  namespace: platform-apps
+data:
+  app.env: "production"
+  log.level: "info"
+  token.expiry: "24h"

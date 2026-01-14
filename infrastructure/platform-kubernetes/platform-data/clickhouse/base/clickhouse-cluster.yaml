@@ -1,0 +1,54 @@
+apiVersion: "clickhouse.altinity.com/v1"
+kind: "ClickHouseInstallation"
+metadata:
+  name: "atomicads-clickhouse"
+spec:
+  configuration:
+    users:
+      admin/password: "atomicads_admin_password"
+      admin/networks/ip:
+        - "0.0.0.0/0"
+    clusters:
+      - name: "atomicads-cluster"
+        layout:
+          shardsCount: 3
+          replicasCount: 2
+        templates:
+          podTemplate: clickhouse-stable
+          dataVolumeClaimTemplate: data-volume
+          logVolumeClaimTemplate: log-volume
+    zookeeper:
+      nodes:
+        - host: atomicads-kafka-zookeeper-client.platform-data.svc
+          port: 2181
+  templates:
+    podTemplates:
+      - name: clickhouse-stable
+        spec:
+          containers:
+            - name: clickhouse
+              image: clickhouse/clickhouse-server:24.1
+              resources:
+                requests:
+                  memory: "4Gi"
+                  cpu: "2"
+                limits:
+                  memory: "8Gi"
+                  cpu: "4"
+    volumeClaimTemplates:
+      - name: data-volume
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 100Gi
+          storageClassName: gp3
+      - name: log-volume
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 10Gi
+          storageClassName: gp3

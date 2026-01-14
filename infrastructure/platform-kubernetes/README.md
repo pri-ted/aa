@@ -1,15 +1,18 @@
 # platform-kubernetes
 
-Kubernetes deployment manifests for Campaign Lifecycle Platform.
+Kubernetes deployment manifests for AtomicAds Platform.
 
 ## Structure
 
 ```
 platform-kubernetes/
 ├── base/                  # Base configurations (namespaces, policies, quotas)
-├── services/              # All 12 service deployments
-├── databases/             # Database deployments
-├── infrastructure/        # Platform infrastructure (Vault, ArgoCD)
+├── overlays/                  # Base configurations Customization overlays (local, dev, staging, production)
+├── platform-apps/              # All 12 service deployments
+├── platform-data/             # Database deployments
+├── platform-operators/             # Database operators deployments
+├── platform-systems/        # Platform infrastructure (Vault, ArgoCD)
+├── platform-monitoring/        # Platform monitoring infrastructure (Grafana, Loki, Tempo, Prometheus)
 └── ingress/              # Ingress configurations
 ```
 
@@ -18,7 +21,7 @@ platform-kubernetes/
 Each service follows this structure:
 
 ```
-services/<service-name>/
+platform-apps/<service-name>/
 ├── base/                  # Base Kubernetes manifests
 │   ├── deployment.yaml
 │   ├── service.yaml
@@ -49,13 +52,13 @@ services/<service-name>/
 
 ```bash
 # View dev manifests
-kubectl kustomize services/auth/overlays/dev
+kubectl kustomize platform-apps/auth/overlays/dev
 
 # Apply dev manifests
-kubectl apply -k services/auth/overlays/dev
+kubectl apply -k platform-apps/auth/overlays/dev
 
 # Apply production manifests
-kubectl apply -k services/auth/overlays/production
+kubectl apply -k platform-apps/auth/overlays/production
 ```
 
 ## Using ArgoCD
@@ -84,13 +87,13 @@ Each service can be configured via:
 1. Create directory structure:
 
 ```bash
-   mkdir -p services/new-service/{base,overlays/{dev,staging,production}}
+   mkdir -p platform-apps/new-service/{base,overlays/{dev,staging,production}}
 ```
 
 2. Copy from existing service:
 
 ```bash
-   cp -r services/auth/base/* services/new-service/base/
+   cp -r platform-apps/auth/base/* services/new-service/base/
 ```
 
 3. Update names and configurations
@@ -98,7 +101,7 @@ Each service can be configured via:
 4. Create ArgoCD application:
 
 ```bash
-   cp infrastructure/argocd/app-auth.yaml infrastructure/argocd/app-new-service.yaml
+   cp platform-systems/argocd/app-auth.yaml infrastructure/argocd/app-new-service.yaml
    # Edit with new service name and path
 ```
 
@@ -132,8 +135,8 @@ All services use `org_id` for data partitioning:
 ## Monitoring
 
 - Prometheus scrapes metrics from all services
-- Grafana dashboards in `infrastructure/monitoring/`
-- AlertManager rules in `infrastructure/monitoring/alerts/`
+- Grafana dashboards in `platform-monitoring` Repository
+- AlertManager rules in `platform-monitoring` Repository
 
 ## Security
 
@@ -145,8 +148,8 @@ All services use `org_id` for data partitioning:
 ## Scaling
 
 - HPA configured for each service
-- Min replicas: 3 (production), 1 (dev)
-- Max replicas: 10 (production), 3 (dev)
+- Min replicas: 2 (production), 1 (dev)
+- Max replicas: 5 (production), 2 (dev)
 - Scale based on CPU/memory
 
 ## Contact

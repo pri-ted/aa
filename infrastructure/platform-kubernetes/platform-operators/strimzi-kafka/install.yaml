@@ -1,0 +1,10 @@
+# Install: kubectl create -f 'https://strimzi.io/install/latest?namespace=operators'
+# Or apply this file for quick start
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: operators
+---
+# For full Strimzi installation, use official installer:
+# kubectl create -f 'https://strimzi.io/install/latest?namespace=operators'
+# This is a minimal placeholder - use official installation in production

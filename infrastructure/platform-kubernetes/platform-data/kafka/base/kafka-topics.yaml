@@ -1,0 +1,105 @@
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: connector.data.raw
+  labels:
+    strimzi.io/cluster: atomicads-kafka
+spec:
+  partitions: 12
+  replicas: 3
+  config:
+    retention.ms: 604800000  # 7 days
+    segment.bytes: 1073741824
+    compression.type: lz4
+    min.insync.replicas: 2
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: bronze.data.ingested
+  labels:
+    strimzi.io/cluster: atomicads-kafka
+spec:
+  partitions: 12
+  replicas: 3
+  config:
+    retention.ms: 2592000000  # 30 days
+    segment.bytes: 1073741824
+    compression.type: lz4
+    min.insync.replicas: 2
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: silver.data.processed
+  labels:
+    strimzi.io/cluster: atomicads-kafka
+spec:
+  partitions: 12
+  replicas: 3
+  config:
+    retention.ms: 2592000000  # 30 days
+    segment.bytes: 1073741824
+    compression.type: lz4
+    min.insync.replicas: 2
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: gold.data.ready
+  labels:
+    strimzi.io/cluster: atomicads-kafka
+spec:
+  partitions: 12
+  replicas: 3
+  config:
+    retention.ms: 7776000000  # 90 days
+    segment.bytes: 1073741824
+    compression.type: lz4
+    min.insync.replicas: 2
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: rules.alerts
+  labels:
+    strimzi.io/cluster: atomicads-kafka
+spec:
+  partitions: 6
+  replicas: 3
+  config:
+    retention.ms: 2592000000  # 30 days
+    segment.bytes: 536870912
+    compression.type: lz4
+    min.insync.replicas: 2
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: config.changes
+  labels:
+    strimzi.io/cluster: atomicads-kafka
+spec:
+  partitions: 3
+  replicas: 3
+  config:
+    retention.ms: 7776000000  # 90 days (audit trail)
+    segment.bytes: 536870912
+    compression.type: lz4
+    min.insync.replicas: 2
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: audit.events
+  labels:
+    strimzi.io/cluster: atomicads-kafka
+spec:
+  partitions: 6
+  replicas: 3
+  config:
+    retention.ms: 15552000000  # 180 days
+    segment.bytes: 536870912
+    compression.type: lz4
+    min.insync.replicas: 2

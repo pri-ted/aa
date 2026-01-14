@@ -1,0 +1,12 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: service-analytics-pdb
+  namespace: platform-apps
+  labels:
+    app: service-analytics
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: service-analytics

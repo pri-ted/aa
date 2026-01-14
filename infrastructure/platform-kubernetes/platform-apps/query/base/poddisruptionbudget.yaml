@@ -1,0 +1,12 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: service-query-pdb
+  namespace: platform-apps
+  labels:
+    app: service-query
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: service-query

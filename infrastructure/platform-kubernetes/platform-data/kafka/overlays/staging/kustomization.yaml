@@ -1,0 +1,41 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: platform-data
+
+resources:
+  - ../../base
+
+patches:
+  # Use base production config with slightly reduced resources
+  - target:
+      kind: Kafka
+      name: atomicads-kafka
+    patch: |-
+      - op: replace
+        path: /spec/kafka/storage/volumes/0/size
+        value: "200Gi"
+      - op: replace
+        path: /spec/kafka/storage/volumes/0/class
+        value: "gp3"
+      - op: replace
+        path: /spec/kafka/resources/requests/memory
+        value: "3Gi"
+      - op: replace
+        path: /spec/kafka/resources/requests/cpu
+        value: "1500m"
+      - op: replace
+        path: /spec/kafka/resources/limits/memory
+        value: "6Gi"
+      - op: replace
+        path: /spec/kafka/resources/limits/cpu
+        value: "3000m"
+      - op: replace
+        path: /spec/zookeeper/storage/size
+        value: "20Gi"
+      - op: replace
+        path: /spec/zookeeper/storage/class
+        value: "gp3"
+
+commonLabels:
+  environment: staging

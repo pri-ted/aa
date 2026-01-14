@@ -1,0 +1,29 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: platform-data
+
+resources:
+  - ../../base
+
+patches:
+  # Production: Use base config with increased storage and adjust storage class
+  - target:
+      kind: Kafka
+      name: atomicads-kafka
+    patch: |-
+      - op: replace
+        path: /spec/kafka/storage/volumes/0/size
+        value: "500Gi"
+      - op: replace
+        path: /spec/kafka/storage/volumes/0/class
+        value: "gp3"
+      - op: replace
+        path: /spec/zookeeper/storage/size
+        value: "50Gi"
+      - op: replace
+        path: /spec/zookeeper/storage/class
+        value: "gp3"
+
+commonLabels:
+  environment: production

@@ -1,0 +1,23 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: platform-apps
+
+bases:
+  - ../../base
+
+images:
+  - name: ghcr.io/atomicads/service-analytics
+    newTag: staging
+
+replicas:
+  - name: service-analytics
+    count: 2
+
+configMapGenerator:
+  - name: service-analytics-config
+    behavior: merge
+    literals:
+      - app.env=staging
+      - log.level=info
+      - otel.samplingRate=0.5

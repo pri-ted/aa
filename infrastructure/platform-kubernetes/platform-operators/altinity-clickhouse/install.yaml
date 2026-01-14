@@ -1,0 +1,68 @@
+# Install: kubectl apply -f operators/altinity-clickhouse/install.yaml
+# Official: https://github.com/Altinity/clickhouse-operator
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: clickhouse-operator
+  namespace: operators
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: clickhouse-operator
+rules:
+  - apiGroups: ["clickhouse.altinity.com"]
+    resources: ["*"]
+    verbs: ["*"]
+  - apiGroups: [""]
+    resources: ["configmaps", "services", "persistentvolumeclaims", "secrets", "pods"]
+    verbs: ["*"]
+  - apiGroups: ["apps"]
+    resources: ["statefulsets"]
+    verbs: ["*"]
+  - apiGroups: ["policy"]
+    resources: ["poddisruptionbudgets"]
+    verbs: ["*"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: clickhouse-operator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: clickhouse-operator
+subjects:
+  - kind: ServiceAccount
+    name: clickhouse-operator
+    namespace: operators
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: clickhouse-operator
+  namespace: operators
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: clickhouse-operator
+  template:
+    metadata:
+      labels:
+        app: clickhouse-operator
+    spec:
+      serviceAccountName: clickhouse-operator
+      containers:
+        - name: clickhouse-operator
+          image: altinity/clickhouse-operator:0.23.5
+          env:
+            - name: WATCH_NAMESPACE
+              value: ""
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi

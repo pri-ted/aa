@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: service-query
+  namespace: platform-apps
+  labels:
+    app: service-query
+    service: query
+spec:
+  type: ClusterIP
+  sessionAffinity: None
+  ports:
+    - name: grpc
+      port: 9101
+      targetPort: grpc
+      protocol: TCP
+    - name: http
+      port: 8011
+      targetPort: http
+      protocol: TCP
+  selector:
+    app: service-query

@@ -1,0 +1,38 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+patches:
+  - target:
+      kind: ClickHouseInstallation
+      name: atomicads-clickhouse
+    patch: |-
+      - op: replace
+        path: /spec/configuration/clusters/0/layout/shardsCount
+        value: 1
+      - op: replace
+        path: /spec/configuration/clusters/0/layout/replicasCount
+        value: 1
+      - op: replace
+        path: /spec/templates/podTemplates/0/spec/containers/0/resources/requests/memory
+        value: "512Mi"
+      - op: replace
+        path: /spec/templates/podTemplates/0/spec/containers/0/resources/requests/cpu
+        value: "250m"
+      - op: replace
+        path: /spec/templates/podTemplates/0/spec/containers/0/resources/limits/memory
+        value: "1Gi"
+      - op: replace
+        path: /spec/templates/podTemplates/0/spec/containers/0/resources/limits/cpu
+        value: "500m"
+      - op: replace
+        path: /spec/templates/volumeClaimTemplates/0/spec/resources/requests/storage
+        value: "20Gi"
+      - op: replace
+        path: /spec/templates/volumeClaimTemplates/0/spec/storageClassName
+        value: "hostpath"
+      - op: replace
+        path: /spec/templates/volumeClaimTemplates/1/spec/storageClassName
+        value: "hostpath"
+commonLabels:
+  environment: local

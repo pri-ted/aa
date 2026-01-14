@@ -1,0 +1,22 @@
+# ArgoCD Installation
+# Install using: kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+# Or for HA: kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/ha/install.yaml
+
+# This is a placeholder - use official installation
+# kubectl create namespace argocd
+# kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/v2.10.0/manifests/install.yaml
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-cm
+  namespace: argocd
+data:
+  # Enable anonymous read-only access (optional)
+  users.anonymous.enabled: "false"
+  
+  # Timeout settings
+  timeout.reconciliation: "180s"
+  
+  # Resource tracking
+  application.resourceTrackingMethod: "annotation"
